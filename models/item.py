@@ -1,7 +1,9 @@
+import uuid
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(frozen=True)
 class Item:
+	id: uuid.UUID
 	importance: float
-	subjects: list[int]
+	subjects: tuple[int, ...]

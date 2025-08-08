@@ -1,4 +1,5 @@
 import random
+import uuid
 
 from models.item import Item
 
@@ -12,19 +13,23 @@ class Engine:
 		self.memory_size = memory_size
 		self.conversation_length = conversation_length
 
+		self.history: list[Item] = []
+		self.last_player = None
+		self.turn = 0
+
 	def generate_preference(self) -> list[int]:
 		return random.sample(self.subjects, len(self.subjects))
 
-	def generate_items(self) -> list[Item]:
-		items = []
+	def generate_items(self) -> tuple[Item, ...]:
+		items: list[Item] = []
 
 		for i in range(self.memory_size):
 			samples = 2 if i < self.memory_size // 2 else 1
 
 			importance = round(random.random(), 2)
-			subjects = random.sample(self.subjects, samples)
+			subjects = tuple(random.sample(self.subjects, samples))
 
-			item = Item(importance, subjects)
+			item = Item(id=uuid.uuid4(), importance=importance, subjects=subjects)
 			items.append(item)
 
-		return items
+		return tuple(items)
