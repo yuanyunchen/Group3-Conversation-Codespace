@@ -13,11 +13,12 @@ class PlayerSnapshot:
 
 
 class Player(ABC):
-	def __init__(self, snapshot: PlayerSnapshot) -> None:
+	def __init__(self, snapshot: PlayerSnapshot, conversation_length: int) -> None:
 		self.id = snapshot.id
 		self.preferences = list(snapshot.preferences)
 		self.memory_bank = list(snapshot.memory_bank)
+		self.conversation_length = conversation_length
 
 	@abstractmethod
-	def propose_item(self) -> Item | None:
+	def propose_item(self, history: list[Item]) -> Item | None:
 		pass

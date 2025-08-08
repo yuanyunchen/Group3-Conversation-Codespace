@@ -2,13 +2,14 @@ import random
 import uuid
 
 from models.item import Item
+from models.player import PlayerSnapshot
 
 
 class Engine:
 	def __init__(
 		self, players: int, subjects: int, memory_size: int, conversation_length: int
 	) -> None:
-		self.players = players
+		self.snapshots = self.__initlize_players(players)
 		self.subjects = [i for i in range(subjects)]
 		self.memory_size = memory_size
 		self.conversation_length = conversation_length
@@ -17,10 +18,23 @@ class Engine:
 		self.last_player = None
 		self.turn = 0
 
-	def generate_preference(self) -> list[int]:
-		return random.sample(self.subjects, len(self.subjects))
+	def __initlize_snapshots(self, player_count) -> list[PlayerSnapshot]:
+		players = []
 
-	def generate_items(self) -> tuple[Item, ...]:
+		for _ in range(player_count):
+			id = uuid.uuid4()
+			preferences = self.__generate_preference()
+			memory_bank = self.__generate_items()
+
+			snapshot = PlayerSnapshot(id=id, preferences=preferences, memory_bank=memory_bank)
+			players.append(snapshot)
+
+		return players
+
+	def __generate_preference(self) -> list[int]:
+		return tuple(random.sample(self.subjects, len(self.subjects)))
+
+	def __generate_items(self) -> tuple[Item, ...]:
 		items: list[Item] = []
 
 		for i in range(self.memory_size):
