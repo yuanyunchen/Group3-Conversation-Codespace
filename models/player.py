@@ -19,6 +19,12 @@ class Player(ABC):
 		self.memory_bank = list(snapshot.memory_bank)
 		self.conversation_length = conversation_length
 
+	def __str__(self) -> str:
+		return f'ID: {self.id}\nPreferences: {self.preferences}\nMemory Bank: {self.memory_bank}'
+
+	def __repr__(self) -> str:
+		return f'ID: {self.id}\nPreferences: {self.preferences}\nMemory Bank: {self.memory_bank}'
+
 	@abstractmethod
-	def propose_item(self, history: list[Item]) -> Item | None:
+	def propose_item(self, history: list[Item]):
 		pass
