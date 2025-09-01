@@ -27,7 +27,7 @@ class Game:
 
 		chatbox_x = side_panel_x + side_panel_width + 10
 		chatbox_y = 25
-		chatbox_width = SCREEN_WIDTH * 0.6
+		chatbox_width = SCREEN_WIDTH * 0.4
 		chatbox_height = SCREEN_HEIGHT * 0.7
 
 		self.sidepanel = PlayerSidepanel(
