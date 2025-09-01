@@ -58,7 +58,10 @@ class Game:
 		for event in pg.event.get():
 			if event.type == pg.QUIT:
 				self.running = False
+
 			self.sidepanel.handle_event(event)
+			self.conversation_history.handle_event(event)
+
 			if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
 				turn_result = self.engine.step()
 				if turn_result is not None and turn_result['item'] is not None:

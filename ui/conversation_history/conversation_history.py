@@ -13,6 +13,8 @@ class ConversationHistory:
 		self.max_height = max_height
 		self.messages: list[Message] = []
 		self._total_height = 0
+		self.scroll_offset = 0
+		self.rect = pg.Rect(x, y, width, max_height)
 
 	def add_message(self, item: Item, sender: str):
 		new_message = Message(
@@ -31,18 +33,32 @@ class ConversationHistory:
 			new_message.rect.y = self.y
 
 		self.messages.append(new_message)
-		self._total_height = new_message.rect.bottom
+		self._total_height += new_message.rect.height + 5
 
 		if self._total_height > self.max_height:
-			scroll_offset = self._total_height - self.max_height
-			for msg in self.messages:
-				msg.rect.y -= scroll_offset
-			self._total_height = self.max_height
+			self.scroll_offset = self.max_height - self._total_height
+
+	def handle_event(self, event):
+		if event.type == pg.MOUSEBUTTONDOWN:
+			if self.rect.collidepoint(event.pos):
+				if event.button == 4:
+					self.scroll_offset = min(self.scroll_offset + 20, 0)
+				elif event.button == 5:
+					max_scroll = max(0, self._total_height - self.max_height)
+					self.scroll_offset = max(self.scroll_offset - 20, -max_scroll)
 
 	def draw(self, surface: pg.Surface):
-		pg.draw.rect(surface, BLACK, (self.x, self.y, self.width, self.max_height), 2)
+		pg.draw.rect(surface, BLACK, self.rect, width=2)
+
+		message_surface = pg.Surface((self.width, self.max_height), pg.SRCALPHA)
+
 		for message in self.messages:
-			surface.blit(message.image, message.rect)
+			message_surface.blit(
+				message.image,
+				(message.rect.x - self.x, message.rect.y - self.y + self.scroll_offset),
+			)
+
+		surface.blit(message_surface, self.rect)
 
 	def clear(self):
 		self.messages.clear()
