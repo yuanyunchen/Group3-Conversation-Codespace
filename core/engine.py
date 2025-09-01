@@ -204,25 +204,41 @@ class Engine:
 
 		return combined_scores
 
+	def __turn(self):
+		proposals = self.__get_proposals()
+		speaker, item = self.__select_speaker(proposals)
+
+		if speaker:
+			self.history.append(item)
+			self.last_player_id = speaker
+			self.consecutive_pauses = 0
+			self.player_contributions[speaker].append(item)
+		else:
+			self.history.append(None)
+			self.last_player_id = None
+			self.consecutive_pauses += 1
+
+		self.turn += 1
+		return {
+			'turn': self.turn,
+			'speaker': speaker,
+			'item': item,
+			'proposals': proposals,
+			'is_over': self.turn >= self.conversation_length or self.consecutive_pauses >= 3,
+		}
+
+	def step(self) -> Optional[dict]:
+		if self.turn >= self.conversation_length or self.consecutive_pauses >= 3:
+			return None
+
+		return self.__turn()
+
 	def run(self, players: list[Type[Player]]):
 		while self.turn < self.conversation_length:
-			proposals = self.__get_proposals()
-			speaker, item = self.__select_speaker(proposals)
-
-			if speaker:
-				self.history.append(item)
-				self.last_player_id = speaker
-				self.consecutive_pauses = 0
-				self.player_contributions[speaker].append(item)
-			else:
-				self.history.append(None)
-				self.last_player_id = None
-				self.consecutive_pauses += 1
+			self.__turn()
 
 			if self.consecutive_pauses >= 3:
 				break
-
-			self.turn += 1
 
 		scores = self.__calculate_scores()
 		return self.history, scores
