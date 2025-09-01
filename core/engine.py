@@ -9,7 +9,6 @@ class Engine:
 	def __init__(
 		self, players: int, subjects: int, memory_size: int, conversation_length: int
 	) -> None:
-		self.snapshots = self.__initlize_players(players)
 		self.subjects = [i for i in range(subjects)]
 		self.memory_size = memory_size
 		self.conversation_length = conversation_length
@@ -18,8 +17,10 @@ class Engine:
 		self.last_player = None
 		self.turn = 0
 
+		self.snapshots = self.__initlize_snapshots(players)
+
 	def __initlize_snapshots(self, player_count) -> list[PlayerSnapshot]:
-		players = []
+		snapshots = []
 
 		for _ in range(player_count):
 			id = uuid.uuid4()
@@ -27,9 +28,10 @@ class Engine:
 			memory_bank = self.__generate_items()
 
 			snapshot = PlayerSnapshot(id=id, preferences=preferences, memory_bank=memory_bank)
-			players.append(snapshot)
 
-		return players
+			snapshot.append(snapshot)
+
+		return snapshots
 
 	def __generate_preference(self) -> list[int]:
 		return tuple(random.sample(self.subjects, len(self.subjects)))
