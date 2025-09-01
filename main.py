@@ -1,19 +1,43 @@
-from core.engine import Engine
-from players.random_player import RandomPlayer
+from typing import Type
 
-# Engine
-#
-# [Players]
-#
-# Game loop
+from core.engine import Engine
+from models.cli import settings
+from models.player import Player
+from players.random_player import RandomPlayer
 
 
 def main():
-	engine = Engine(players=4, memory_size=10, conversation_length=10, subjects=5)
+	args = settings()
 
-	for snapshot in engine.snapshots:
-		player = RandomPlayer(snapshot=snapshot, conversation_length=engine.conversation_length)
-		print(player)
+	engine = Engine(
+		players=args.players,
+		subjects=args.subjects,
+		memory_size=args.memory_size,
+		conversation_length=args.length,
+		seed=args.seed,
+	)
+
+	print('Initializing players...')
+	print('Running conversation simulation...')
+
+	players: list[Type[Player]] = [RandomPlayer] * args.players
+	history, scores = engine.run(players)
+
+	print('\n--- Game Simulation Complete ---')
+	print(f'Conversation Length: {len(history)} turns\n')
+
+	print('--- Final Scores ---')
+	for uid, score in scores.items():
+		print(f'Player {str(uid)[:8]}: {score:.2f}')
+
+	print('\n--- Conversation History ---')
+	for i, item in enumerate(history):
+		if item:
+			print(
+				f'Turn {i}: Item ID {str(item.id)[:8]} - Subjects {item.subjects} - Importance {item.importance}'
+			)
+		else:
+			print(f'Turn {i}: No item proposed (Pause)')
 
 
 if __name__ == '__main__':
