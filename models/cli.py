@@ -9,6 +9,7 @@ class Settings:
 	memory_size: int
 	length: int
 	seed: int
+	gui: bool
 
 
 def settings() -> Settings:
@@ -27,6 +28,7 @@ def settings() -> Settings:
 	parser.add_argument(
 		'--seed', type=int, default=91, help='Seed for the random number generator.'
 	)
+	parser.add_argument('--gui', type=bool, default=False, help='Run GUI.')
 
 	args = parser.parse_args()
 	return Settings(**vars(args))
