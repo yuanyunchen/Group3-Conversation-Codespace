@@ -23,7 +23,7 @@ class PlayerSidepanel(pg.sprite.Sprite):
 	def create_cards(self):
 		y_offset = 10
 		for snapshot in self.snapshots:
-			card = PlayerInfo(snapshot=snapshot, x=10, y=y_offset)
+			card = PlayerInfo(snapshot=snapshot, x=20, y=y_offset)
 			y_offset += card.rect.height + 10
 
 			self.cards.add(card)

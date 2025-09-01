@@ -3,7 +3,7 @@ import sys
 import pygame as pg
 
 from core.engine import Engine
-from ui.base import WHITE, screen
+from ui.base import SCREEN_HEIGHT, SCREEN_WIDTH, WHITE, screen
 from ui.player_sidepanel.player_sidepanel import PlayerSidepanel
 
 
@@ -12,8 +12,8 @@ def run_gui(engine: Engine):
 		snapshots=engine.snapshots,
 		x=50,
 		y=25,
-		width=220,
-		height=580,
+		width=SCREEN_WIDTH * 0.2,
+		height=SCREEN_HEIGHT * 0.9,
 	)
 
 	all_sprites = pg.sprite.Group()
