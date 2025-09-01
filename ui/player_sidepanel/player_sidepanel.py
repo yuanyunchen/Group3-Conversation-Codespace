@@ -52,3 +52,6 @@ class PlayerSidepanel(pg.sprite.Sprite):
 
 			if self.image.get_rect().colliderect(temp_rect):
 				self.image.blit(card.image, (blit_x, blit_y))
+
+	def draw(self, surface: pg.Surface):
+		surface.blit(self.image, self.rect)
