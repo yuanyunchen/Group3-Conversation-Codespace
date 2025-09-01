@@ -4,14 +4,20 @@ import pygame as pg
 
 from core.engine import Engine
 from ui.base import WHITE, screen
-from ui.player_info import PlayerInfo
+from ui.player_sidepanel.player_sidepanel import PlayerSidepanel
 
 
 def run_gui(engine: Engine):
-	player_card = PlayerInfo(snapshot=engine.snapshots[0], x=100, y=100)
+	sidepanel = PlayerSidepanel(
+		snapshots=engine.snapshots,
+		x=50,
+		y=25,
+		width=220,
+		height=580,
+	)
 
 	all_sprites = pg.sprite.Group()
-	all_sprites.add(player_card)
+	all_sprites.add(sidepanel)
 
 	running = True
 	while running:

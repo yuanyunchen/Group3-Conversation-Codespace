@@ -13,9 +13,7 @@ class PlayerInfo(pg.sprite.Sprite):
 		self.image = pg.Surface((self.card_width, self.card_height), pg.SRCALPHA)
 		self.rect = self.image.get_rect(topleft=(x, y))
 
-		self.render()
-
-	def render(self):
+	def update(self):
 		self.image.fill(WHITE)
 
 		pg.draw.rect(
