@@ -24,12 +24,9 @@ class Message(pg.sprite.Sprite):
 		sender_surface = self.text_font.render(f'{self.sender}:', True, BLACK)
 		text_surface = self.text_font.render(text_content, True, BLACK)
 
-		content_width = max(sender_surface.get_width(), text_surface.get_width())
 		content_height = sender_surface.get_height() + text_surface.get_height()
 
-		self.image = pg.Surface(
-			(content_width + self.padding * 2, content_height + self.padding * 2), pg.SRCALPHA
-		)
+		self.image = pg.Surface((self.max_width, content_height + self.padding * 2), pg.SRCALPHA)
 
 		self.rect.width = self.image.get_width()
 		self.rect.height = self.image.get_height()

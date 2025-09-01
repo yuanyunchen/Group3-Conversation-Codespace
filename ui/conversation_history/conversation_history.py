@@ -15,25 +15,26 @@ class ConversationHistory:
 		self._total_height = 0
 		self.scroll_offset = 0
 		self.rect = pg.Rect(x, y, width, max_height)
+		self.message_spacing = 5
 
 	def add_message(self, item: Item, sender: str):
 		new_message = Message(
 			item=item,
 			sender=sender,
-			x=self.x,
+			x=self.x + self.message_spacing,
 			y=0,
-			max_width=self.width,
+			max_width=self.width - self.message_spacing * 2,
 		)
 
 		if self.messages:
 			last_message = self.messages[-1]
-			new_y = last_message.rect.bottom + 5
+			new_y = last_message.rect.bottom + self.message_spacing
 			new_message.rect.y = new_y
 		else:
-			new_message.rect.y = self.y
+			new_message.rect.y = self.y + self.message_spacing
 
 		self.messages.append(new_message)
-		self._total_height += new_message.rect.height + 5
+		self._total_height += new_message.rect.height + self.message_spacing
 
 		if self._total_height > self.max_height:
 			self.scroll_offset = self.max_height - self._total_height
