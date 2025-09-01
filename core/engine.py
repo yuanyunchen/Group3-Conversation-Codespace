@@ -79,7 +79,9 @@ class Engine:
 
 		min_contributions = min(len(self.player_contributions[uid]) for uid in proposed_players)
 		eligible_speakers = [
-			uid for uid in proposed_players if self.player_contributions[uid] == min_contributions
+			uid
+			for uid in proposed_players
+			if len(self.player_contributions[uid]) == min_contributions
 		]
 
 		speaker_id = random.choice(eligible_speakers)
@@ -217,6 +219,5 @@ class Engine:
 
 			self.turn += 1
 
-		scores = {}
-
+		scores = self.__calculate_scores()
 		return self.history, scores
