@@ -30,12 +30,26 @@ class PlayerSidepanel(pg.sprite.Sprite):
 
 		self.content_height = y_offset
 
+	def handle_event(self, event):
+		if event.type == pg.MOUSEBUTTONDOWN:
+			if self.rect.collidepoint(event.pos):
+				if event.button == 4:
+					self.scroll_offset = min(self.scroll_offset + 20, 0)
+				elif event.button == 5:
+					max_scroll = max(0, self.content_height - self.height)
+					self.scroll_offset = max(self.scroll_offset - 20, -max_scroll)
+
 	def update(self):
 		self.cards.update()
 		self.image.fill(pg.Color(50, 50, 50))
 
 		for card in self.cards:
-			card_rect = card.rect.copy()
-			card_rect.top += self.scroll_offset
+			blit_y = card.rect.y + self.scroll_offset
+			blit_pos = (card.rect.x, blit_y)
 
-			self.image.blit(card.image, card_rect.topleft)
+			visible_rect = pg.Rect(self.rect.left, self.rect.top, self.width, self.height)
+			card_global_rect = card.rect.copy()
+			card_global_rect.top += self.scroll_offset
+
+			if visible_rect.colliderect(card_global_rect):
+				self.image.blit(card.image, blit_pos)

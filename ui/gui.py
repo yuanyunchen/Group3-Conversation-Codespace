@@ -24,6 +24,7 @@ def run_gui(engine: Engine):
 		for event in pg.event.get():
 			if event.type == pg.QUIT:
 				running = False
+			sidepanel.handle_event(event)
 
 		all_sprites.update()
 
