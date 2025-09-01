@@ -8,9 +8,11 @@ from players.random_player import RandomPlayer
 
 def main():
 	args = settings()
+	players: list[Type[Player]] = [RandomPlayer] * args.players_count
 
 	engine = Engine(
-		players=args.players,
+		players=players,
+		player_count=args.players_count,
 		subjects=args.subjects,
 		memory_size=args.memory_size,
 		conversation_length=args.length,
@@ -20,7 +22,6 @@ def main():
 	print('Initializing players...')
 	print('Running conversation simulation...')
 
-	players: list[Type[Player]] = [RandomPlayer] * args.players
 	history, scores = engine.run(players)
 
 	print('\n--- Game Simulation Complete ---')

@@ -9,14 +9,20 @@ from models.player import Player, PlayerSnapshot
 
 class Engine:
 	def __init__(
-		self, players: int, subjects: int, memory_size: int, conversation_length: int, seed: int
+		self,
+		players: list[Type[Player]],
+		player_count: int,
+		subjects: int,
+		memory_size: int,
+		conversation_length: int,
+		seed: int,
 	) -> None:
 		random.seed(seed)
 
 		self.subjects = [i for i in range(subjects)]
 		self.memory_size = memory_size
 		self.conversation_length = conversation_length
-		self.players_count = players
+		self.players_count = player_count
 
 		self.history: list[Optional[Item]] = []
 		self.last_player_id: Optional[uuid.UUID] = None
@@ -24,7 +30,11 @@ class Engine:
 		self.consecutive_pauses = 0
 
 		self.player_contributions: dict[uuid.UUID, list[Item]] = {}
-		self.snapshots = self.__initialize_snapshots(players)
+		self.snapshots = self.__initialize_snapshots(player_count)
+		self.players = [
+			player(snapshot=self.snapshots[i], conversation_length=self.conversation_length)
+			for i, player in enumerate(players)
+		]
 
 	def __initialize_snapshots(self, player_count) -> list[PlayerSnapshot]:
 		snapshots = []
@@ -58,9 +68,9 @@ class Engine:
 
 		return tuple(items)
 
-	def __get_proposals(self, players: list[Player]) -> dict[uuid.UUID, Optional[Item]]:
+	def __get_proposals(self) -> dict[uuid.UUID, Optional[Item]]:
 		proposals = {}
-		for player in players:
+		for player in self.players:
 			proposals[player.id] = player.propose_item(self.history)
 		return proposals
 
@@ -195,13 +205,8 @@ class Engine:
 		return combined_scores
 
 	def run(self, players: list[Type[Player]]):
-		player_instances = [
-			player(snapshot=self.snapshots[i], conversation_length=self.conversation_length)
-			for i, player in enumerate(players)
-		]
-
 		while self.turn < self.conversation_length:
-			proposals = self.__get_proposals(player_instances)
+			proposals = self.__get_proposals()
 			speaker, item = self.__select_speaker(proposals)
 
 			if speaker:
