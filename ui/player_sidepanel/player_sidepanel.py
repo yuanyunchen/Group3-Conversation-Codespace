@@ -44,12 +44,11 @@ class PlayerSidepanel(pg.sprite.Sprite):
 		self.image.fill(pg.Color(50, 50, 50))
 
 		for card in self.cards:
+			blit_x = card.rect.x
 			blit_y = card.rect.y + self.scroll_offset
-			blit_pos = (card.rect.x, blit_y)
 
-			visible_rect = pg.Rect(self.rect.left, self.rect.top, self.width, self.height)
-			card_global_rect = card.rect.copy()
-			card_global_rect.top += self.scroll_offset
+			temp_rect = card.rect.copy()
+			temp_rect.top = blit_y
 
-			if visible_rect.colliderect(card_global_rect):
-				self.image.blit(card.image, blit_pos)
+			if self.image.get_rect().colliderect(temp_rect):
+				self.image.blit(card.image, (blit_x, blit_y))
