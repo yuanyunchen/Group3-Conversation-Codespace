@@ -1,5 +1,6 @@
 import random
 import uuid
+from collections import Counter
 from typing import Optional, Type
 
 from models.item import Item
@@ -22,7 +23,7 @@ class Engine:
 		self.turn = 0
 		self.consecutive_pauses = 0
 
-		self.player_contributions: dict[uuid.UUID, int] = {}
+		self.player_contributions: dict[uuid.UUID, list[Item]] = {}
 		self.snapshots = self.__initialize_snapshots(players)
 
 	def __initialize_snapshots(self, player_count) -> list[PlayerSnapshot]:
@@ -36,7 +37,7 @@ class Engine:
 			snapshot = PlayerSnapshot(id=id, preferences=preferences, memory_bank=memory_bank)
 
 			snapshots.append(snapshot)
-			self.player_contributions[id] = 0
+			self.player_contributions[id] = []
 
 		return snapshots
 
@@ -76,7 +77,7 @@ class Engine:
 				item = proposed_players[self.last_player_id]
 				return self.last_player_id, item
 
-		min_contributions = min(self.player_contributions[uid] for uid in proposed_players)
+		min_contributions = min(len(self.player_contributions[uid]) for uid in proposed_players)
 		eligible_speakers = [
 			uid for uid in proposed_players if self.player_contributions[uid] == min_contributions
 		]
@@ -94,6 +95,103 @@ class Engine:
 		unique_items.add(current_item.id)
 		return current_item.importance
 
+	def __calculate_freshness_score(self, i: int, current_item: Item) -> float:
+		if i == 0 or self.history[i - 1] is not None:
+			return 0.0
+
+		prior_items = (item for item in self.history[max(0, i - 6) : i - 1] if item is not None)
+		prior_subjects = {s for item in prior_items for s in item.subjects}
+
+		novel_subjects = [s for s in current_item.subjects if s not in prior_subjects]
+
+		return float(len(novel_subjects))
+
+	def __calculate_coherence_score(self, i: int, current_item: Item) -> float:
+		context_items = [
+			self.history[j]
+			for j in range(max(0, i - 3), min(len(self.history), i + 4))
+			if self.history[j] and j != i
+		]
+
+		context_subject_counts = Counter(s for item in context_items for s in item.subjects)
+		score = 0.0
+
+		if not all(subject in context_subject_counts for subject in current_item.subjects):
+			score -= 1.0
+
+		if all(context_subject_counts.get(s, 0) >= 2 for s in current_item.subjects):
+			score += 1.0
+
+		return score
+
+	def __calculate_nonmonotonousness_score(self, i: int, current_item: Item) -> float:
+		if i < 3:
+			return 0.0
+
+		last_three_items = [self.history[j] for j in range(i - 3, i)]
+		if all(
+			item and any(s in item.subjects for s in current_item.subjects)
+			for item in last_three_items
+		):
+			return -1.0
+
+		return 0.0
+
+	def __calculate_individual_score(self) -> dict[uuid.UUID, float]:
+		individual_scores: dict[uuid.UUID, float] = {p.id: 0.0 for p in self.snapshots}
+
+		for uid, contributed_items in self.player_contributions.items():
+			snapshot = next(s for s in self.snapshots if s.id == uid)
+			preferences = snapshot.preferences
+
+			for item in contributed_items:
+				best_subject_rank = next(
+					(
+						preferences.index(subject)
+						for subject in preferences
+						if subject in item.subjects
+					),
+					len(preferences),
+				)
+
+				individual_scores[uid] += (1 - best_subject_rank / len(preferences)) / len(
+					item.subjects
+				)
+
+		return individual_scores
+
+	def __calculate_scores(self) -> dict[uuid.UUID, float]:
+		shared_scores: dict[uuid.UUID, float] = {p.id: 0.0 for p in self.snapshots}
+
+		unique_items: set[uuid.UUID] = set()
+
+		for i, current_item in enumerate(self.history):
+			if not current_item:
+				continue
+
+			total_shared_score = 0.0
+			total_shared_score += self.__calculate_importance_score(current_item, unique_items)
+			total_shared_score += self.__calculate_coherence_score(i, current_item)
+			total_shared_score += self.__calculate_freshness_score(i, current_item)
+			total_shared_score += self.__calculate_nonmonotonousness_score(i, current_item)
+
+			for uid in shared_scores:
+				shared_scores[uid] += total_shared_score
+
+		individual_scores = self.__calculate_individual_score()
+
+		combined_scores = shared_scores.copy()
+		for uid in combined_scores:
+			combined_scores[uid] += individual_scores[uid]
+
+		for uid in combined_scores:
+			if self.conversation_length > 0:
+				combined_scores[uid] /= self.conversation_length
+			else:
+				combined_scores[uid] = 0.0
+
+		return combined_scores
+
 	def run(self, players: list[Type[Player]]):
 		player_instances = [
 			player(snapshot=self.snapshots[i], conversation_length=self.conversation_length)
@@ -108,7 +206,7 @@ class Engine:
 				self.history.append(item)
 				self.last_player_id = speaker
 				self.consecutive_pauses = 0
-				self.player_contributions[speaker] += 1
+				self.player_contributions[speaker].append(item)
 			else:
 				self.history.append(None)
 				self.last_player_id = None
