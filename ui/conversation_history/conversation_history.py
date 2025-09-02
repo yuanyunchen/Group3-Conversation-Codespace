@@ -1,7 +1,7 @@
 import pygame as pg
 
 from models.item import Item
-from ui.base import BLACK
+from ui.base import BLACK, WHITE
 from ui.conversation_history.message import Message
 
 
@@ -24,9 +24,9 @@ class ConversationHistory(pg.sprite.Sprite):
 		new_message = Message(
 			item=item,
 			sender=sender,
-			x=self.x + self.message_spacing,
+			x=self.x + self.message_spacing * 2,
 			y=0,
-			max_width=self.width - self.message_spacing * 2,
+			max_width=self.width - self.message_spacing * 4,
 		)
 
 		self.messages.insert(0, new_message)
@@ -45,19 +45,23 @@ class ConversationHistory(pg.sprite.Sprite):
 					self.scroll_offset = max(self.scroll_offset - 20, 0)
 
 	def draw(self, surface: pg.Surface):
-		pg.draw.rect(surface, BLACK, self.rect, width=2)
+		surface_with_styling = pg.Surface((self.width, self.max_height), pg.SRCALPHA)
+		surface_with_styling.fill(WHITE)
+		pg.draw.rect(
+			surface_with_styling, BLACK, surface_with_styling.get_rect(), width=2, border_radius=10
+		)
 
 		title_text = 'Conversation History'
 		title_surface = self.title_font.render(title_text, True, BLACK)
-		title_x = self.x + (self.width - title_surface.get_width()) / 2
-		title_y = self.y + 5
-		surface.blit(title_surface, (title_x, title_y))
+		title_x = (self.width - title_surface.get_width()) / 2
+		title_y = 5
+		surface_with_styling.blit(title_surface, (title_x, title_y))
 
 		messages_rect = pg.Rect(
-			self.x,
-			self.y + self.title_height_offset,
-			self.width,
-			self.max_height - self.title_height_offset,
+			10,
+			self.title_height_offset,
+			self.width - 20,
+			self.max_height - self.title_height_offset - 10,
 		)
 
 		messages_content_surface = pg.Surface(
@@ -68,11 +72,12 @@ class ConversationHistory(pg.sprite.Sprite):
 		for message in self.messages:
 			messages_content_surface.blit(
 				message.image,
-				(message.rect.x - self.x, y_offset),
+				(0, y_offset),
 			)
 			y_offset += message.rect.height + self.message_spacing
 
-		surface.blit(messages_content_surface, messages_rect.topleft)
+		surface_with_styling.blit(messages_content_surface, messages_rect.topleft)
+		surface.blit(surface_with_styling, self.rect.topleft)
 
 	def clear(self):
 		self.messages.clear()
