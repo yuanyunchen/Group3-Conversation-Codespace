@@ -128,13 +128,13 @@ class Game:
 
 				if turn_result is None or turn_result.get('is_over'):
 					self.simulation_finished = True
-					scores = self.engine.final_scores()
-					lb_width = SCREEN_WIDTH * 0.75
+					score_data = self.engine.final_scores()
+					lb_width = SCREEN_WIDTH * 0.7
 					lb_height = SCREEN_HEIGHT * 0.75
 					lb_x = (SCREEN_WIDTH - lb_width) / 2
 					lb_y = (SCREEN_HEIGHT - lb_height) / 2
 					self.leaderboard_popup = Leaderboard(
-						scores, self.engine.player_names, lb_x, lb_y, lb_width, lb_height
+						score_data, self.engine.player_names, lb_x, lb_y, lb_width, lb_height
 					)
 
 				self.sidepanel.update_contributions(self.engine.player_contributions)

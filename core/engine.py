@@ -178,37 +178,44 @@ class Engine:
 
 		return individual_scores
 
-	def __calculate_scores(self) -> dict[uuid.UUID, float]:
-		shared_scores: dict[uuid.UUID, float] = {p.id: 0.0 for p in self.snapshots}
-
+	def __calculate_scores(self) -> tuple[float, dict[uuid.UUID, float]]:
+		total_shared_score = 0.0
 		unique_items: set[uuid.UUID] = set()
 
 		for i, current_item in enumerate(self.history):
 			if not current_item:
 				continue
 
-			total_shared_score = 0.0
 			total_shared_score += self.__calculate_importance_score(current_item, unique_items)
 			total_shared_score += self.__calculate_coherence_score(i, current_item)
 			total_shared_score += self.__calculate_freshness_score(i, current_item)
 			total_shared_score += self.__calculate_nonmonotonousness_score(i, current_item)
 
-			for uid in shared_scores:
-				shared_scores[uid] += total_shared_score
-
 		individual_scores = self.__calculate_individual_score()
 
-		combined_scores = shared_scores.copy()
-		for uid in combined_scores:
-			combined_scores[uid] += individual_scores[uid]
+		return total_shared_score, individual_scores
 
-		for uid in combined_scores:
-			if self.conversation_length > 0:
-				combined_scores[uid] /= self.conversation_length
-			else:
-				combined_scores[uid] = 0.0
+	def final_scores(self) -> dict:
+		shared_score, individual_scores = self.__calculate_scores()
 
-		return combined_scores
+		final_results = {}
+		for uid in self.player_names:
+			total_raw_score = shared_score + individual_scores.get(uid, 0.0)
+			conversation_quality = (
+				total_raw_score / self.conversation_length if self.conversation_length > 0 else 0
+			)
+
+			final_results[uid] = {
+				'total': conversation_quality,
+				'shared': shared_score,
+				'individual': individual_scores.get(uid, 0.0),
+			}
+
+		return {
+			'conversation_length': len(self.history),
+			'pauses': self.history.count(None),
+			'scores': final_results,
+		}
 
 	def __turn(self):
 		proposals = self.__get_proposals()
@@ -234,9 +241,6 @@ class Engine:
 			'is_over': self.turn >= self.conversation_length or self.consecutive_pauses >= 3,
 		}
 
-	def final_scores(self) -> dict[uuid.UUID, float]:
-		return self.__calculate_scores()
-
 	def step(self) -> Optional[dict]:
 		if self.turn >= self.conversation_length or self.consecutive_pauses >= 3:
 			return None
@@ -250,5 +254,6 @@ class Engine:
 			if self.consecutive_pauses >= 3:
 				break
 
-		scores = self.__calculate_scores()
+		score_data = self.final_scores()
+		scores = {pid: data['total'] for pid, data in score_data['scores'].items()}
 		return self.history, scores
