@@ -14,18 +14,19 @@ class PlayerSnapshot:
 
 
 class Player(ABC):
-	def __init__(self, snapshot: PlayerSnapshot, conversation_length: int) -> None:
+	def __init__(self, snapshot: PlayerSnapshot, name: str, conversation_length: int) -> None:
 		self.id = snapshot.id
+		self.name = name
 		self.preferences = list(snapshot.preferences)
 		self.memory_bank = list(snapshot.memory_bank)
 		self.conversation_length = conversation_length
 		self.contributed_items = []
 
 	def __str__(self) -> str:
-		return f'ID: {self.id}\nPreferences: {self.preferences}\nMemory Bank: {self.memory_bank}'
+		return f'ID: {self.id}\nName: {self.name}\nPreferences: {self.preferences}\nMemory Bank: {self.memory_bank}'
 
 	def __repr__(self) -> str:
-		return f'ID: {self.id}\nPreferences: {self.preferences}\nMemory Bank: {self.memory_bank}'
+		return f'ID: {self.id}\nName: {self.name}\nPreferences: {self.preferences}\nMemory Bank: {self.memory_bank}'
 
 	@abstractmethod
 	def propose_item(self, history: list[Item]) -> Optional[Item]:

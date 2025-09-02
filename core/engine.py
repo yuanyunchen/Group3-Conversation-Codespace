@@ -32,7 +32,11 @@ class Engine:
 		self.player_contributions: dict[uuid.UUID, list[Item]] = {}
 		self.snapshots = self.__initialize_snapshots(player_count)
 		self.players = [
-			player(snapshot=self.snapshots[i], conversation_length=self.conversation_length)
+			player(
+				snapshot=self.snapshots[i],
+				name=f'Player {i}',
+				conversation_length=self.conversation_length,
+			)
 			for i, player in enumerate(players)
 		]
 

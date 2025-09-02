@@ -43,7 +43,7 @@ class Game:
 		proposals_display_height = SCREEN_HEIGHT * 0.55
 
 		self.sidepanel = PlayerSidepanel(
-			snapshots=engine.snapshots,
+			players=engine.players,
 			x=side_panel_x,
 			y=side_panel_y,
 			width=side_panel_width,

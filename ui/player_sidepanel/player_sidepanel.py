@@ -1,15 +1,15 @@
 import pygame as pg
 
-from models.player import PlayerSnapshot
+from models.player import Player
 from ui.player_sidepanel.player_info import PlayerInfo
 
 
 class PlayerSidepanel(pg.sprite.Sprite):
 	def __init__(
-		self, snapshots: list[PlayerSnapshot], x: int, y: int, width: int, height: int, *groups
+		self, players: list[Player], x: int, y: int, width: int, height: int, *groups
 	) -> None:
 		pg.sprite.Sprite.__init__(self, *groups)
-		self.snapshots = snapshots
+		self.players = players
 		self.width = width
 		self.height = height
 		self.image = pg.Surface((width, height), pg.SRCALPHA)
@@ -22,8 +22,8 @@ class PlayerSidepanel(pg.sprite.Sprite):
 
 	def create_cards(self):
 		y_offset = 10
-		for snapshot in self.snapshots:
-			card = PlayerInfo(snapshot=snapshot, x=20, y=y_offset)
+		for player in self.players:
+			card = PlayerInfo(player=player, x=20, y=y_offset)
 			y_offset += card.rect.height + 10
 
 			self.cards.add(card)
