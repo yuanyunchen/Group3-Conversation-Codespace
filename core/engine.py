@@ -162,19 +162,17 @@ class Engine:
 			snapshot = next(s for s in self.snapshots if s.id == uid)
 			preferences = snapshot.preferences
 
+			player_individual_score = 0.0
 			for item in contributed_items:
-				best_subject_rank = next(
-					(
-						preferences.index(subject)
-						for subject in preferences
-						if subject in item.subjects
-					),
-					len(preferences),
-				)
+				bonuses = [
+					1 - preferences.index(s) / len(preferences)
+					for s in item.subjects
+					if s in preferences
+				]
+				if bonuses:
+					player_individual_score += sum(bonuses) / len(bonuses)
 
-				individual_scores[uid] += (1 - best_subject_rank / len(preferences)) / len(
-					item.subjects
-				)
+			individual_scores[uid] = player_individual_score
 
 		return individual_scores
 
