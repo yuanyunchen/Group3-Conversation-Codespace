@@ -5,8 +5,9 @@ from ui.base import BLACK
 from ui.conversation_history.message import Message
 
 
-class ConversationHistory:
-	def __init__(self, x: int, y: int, width: int, max_height: int):
+class ConversationHistory(pg.sprite.Sprite):
+	def __init__(self, x: int, y: int, width: int, max_height: int, *groups):
+		pg.sprite.Sprite.__init__(self, *groups)
 		self.x = x
 		self.y = y
 		self.width = width
@@ -17,6 +18,7 @@ class ConversationHistory:
 		self.rect = pg.Rect(x, y, width, max_height)
 		self.message_spacing = 5
 		self.title_font = pg.font.SysFont(None, 24, bold=True)
+		self.title_height_offset = self.title_font.get_height() + 10
 
 	def add_message(self, item: Item, sender: str):
 		new_message = Message(
@@ -27,27 +29,20 @@ class ConversationHistory:
 			max_width=self.width - self.message_spacing * 2,
 		)
 
-		if self.messages:
-			last_message = self.messages[-1]
-			new_y = last_message.rect.bottom + self.message_spacing
-			new_message.rect.y = new_y
-		else:
-			new_message.rect.y = self.y + self.message_spacing
-
-		self.messages.append(new_message)
-		self._total_height += new_message.rect.height + self.message_spacing
-
-		if self._total_height > self.max_height:
-			self.scroll_offset = self.max_height - self._total_height
+		self.messages.insert(0, new_message)
+		self._total_height = sum(m.rect.height + self.message_spacing for m in self.messages)
+		self.scroll_offset = 0
 
 	def handle_event(self, event):
 		if event.type == pg.MOUSEBUTTONDOWN:
 			if self.rect.collidepoint(event.pos):
+				messages_rect_height = self.max_height - self.title_height_offset
+				max_scroll = max(0, self._total_height - messages_rect_height)
+
 				if event.button == 4:
-					self.scroll_offset = min(self.scroll_offset + 20, 0)
+					self.scroll_offset = min(self.scroll_offset + 20, max_scroll)
 				elif event.button == 5:
-					max_scroll = max(0, self._total_height - self.max_height)
-					self.scroll_offset = max(self.scroll_offset - 20, -max_scroll)
+					self.scroll_offset = max(self.scroll_offset - 20, 0)
 
 	def draw(self, surface: pg.Surface):
 		pg.draw.rect(surface, BLACK, self.rect, width=2)
@@ -58,22 +53,28 @@ class ConversationHistory:
 		title_y = self.y + 5
 		surface.blit(title_surface, (title_x, title_y))
 
-		title_height_offset = title_surface.get_height() + 10
 		messages_rect = pg.Rect(
-			self.x, self.y + title_height_offset, self.width, self.max_height - title_height_offset
+			self.x,
+			self.y + self.title_height_offset,
+			self.width,
+			self.max_height - self.title_height_offset,
 		)
 
 		messages_content_surface = pg.Surface(
 			(messages_rect.width, messages_rect.height), pg.SRCALPHA
 		)
 
-		y_offset = self.scroll_offset
+		y_offset = 0 - self.scroll_offset
 		for message in self.messages:
-			messages_content_surface.blit(message.image, (message.rect.x - self.x, y_offset))
-			y_offset += message.rect.height + 5
+			messages_content_surface.blit(
+				message.image,
+				(message.rect.x - self.x, y_offset),
+			)
+			y_offset += message.rect.height + self.message_spacing
 
 		surface.blit(messages_content_surface, messages_rect.topleft)
 
 	def clear(self):
 		self.messages.clear()
 		self._total_height = 0
+		self.scroll_offset = 0
