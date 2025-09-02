@@ -7,10 +7,10 @@ from ui.base import BLACK, WHITE, font
 
 
 class PlayerInfo(pg.sprite.Sprite):
-	def __init__(self, player: Type[Player], x: int, y: int, *groups) -> None:
+	def __init__(self, player: Type[Player], x: int, y: int, width: int, *groups) -> None:
 		pg.sprite.Sprite.__init__(self, *groups)
 		self.player = player
-		self.card_width = 200
+		self.card_width = width
 		self.card_height = 60
 		self.image = pg.Surface((self.card_width, self.card_height), pg.SRCALPHA)
 		self.rect = self.image.get_rect(topleft=(x, y))
