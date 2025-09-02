@@ -33,11 +33,20 @@ class PlayerSidepanel(pg.sprite.Sprite):
 	def handle_event(self, event):
 		if event.type == pg.MOUSEBUTTONDOWN:
 			if self.rect.collidepoint(event.pos):
-				if event.button == 4:
+				if event.button == 4:  # Scroll up
 					self.scroll_offset = min(self.scroll_offset + 20, 0)
-				elif event.button == 5:
+				elif event.button == 5:  # Scroll down
 					max_scroll = max(0, self.content_height - self.height)
 					self.scroll_offset = max(self.scroll_offset - 20, -max_scroll)
+				elif event.button == 1:  # Left mouse button
+					for card in self.cards:
+						card_screen_rect = card.rect.copy()
+						card_screen_rect.topleft = (
+							self.rect.x + card.rect.x,
+							self.rect.y + card.rect.y + self.scroll_offset,
+						)
+						if card_screen_rect.collidepoint(event.pos):
+							return card.player
 
 	def update(self):
 		self.cards.update()

@@ -5,6 +5,7 @@ import pygame as pg
 from core.engine import Engine
 from ui.base import SCREEN_HEIGHT, SCREEN_WIDTH, WHITE
 from ui.conversation_history.conversation_history import ConversationHistory
+from ui.player_sidepanel.player_popup import PlayerPopup
 from ui.player_sidepanel.player_sidepanel import PlayerSidepanel
 from ui.proposals import Proposals
 from ui.turn_display import TurnDisplay
@@ -63,6 +64,7 @@ class Game:
 			proposals_display_height,
 		)
 
+		self.active_popup = None
 		self.running = True
 
 	def run(self):
@@ -79,9 +81,35 @@ class Game:
 			if event.type == pg.QUIT:
 				self.running = False
 
-			self.sidepanel.handle_event(event)
-			self.conversation_history.handle_event(event)
-			self.propsals.handle_event(event)
+			if self.active_popup:
+				self.active_popup.handle_event(event)
+				if (
+					event.type == pg.MOUSEBUTTONDOWN
+					and event.button == 1
+					and not self.active_popup.rect.collidepoint(event.pos)
+				):
+					self.active_popup = None
+				continue
+
+			clicked_player = self.sidepanel.handle_event(event)
+			if clicked_player:
+				popup_width = SCREEN_WIDTH * 0.75
+				popup_height = SCREEN_HEIGHT * 0.75
+
+				popup_x = (SCREEN_WIDTH - popup_width) / 2
+				popup_y = (SCREEN_HEIGHT - popup_height) / 2
+
+				self.active_popup = PlayerPopup(
+					player=clicked_player,
+					x=popup_x,
+					y=popup_y,
+					width=popup_width,
+					height=popup_height,
+				)
+
+			else:
+				self.conversation_history.handle_event(event)
+				self.propsals.handle_event(event)
 
 			if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
 				turn_result = self.engine.step()
@@ -99,3 +127,6 @@ class Game:
 		self.turn_display.draw(self.screen)
 		self.propsals.draw(self.screen)
 		self.conversation_history.draw(self.screen)
+
+		if self.active_popup:
+			self.active_popup.draw(self.screen)
