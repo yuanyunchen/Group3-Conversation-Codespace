@@ -234,6 +234,9 @@ class Engine:
 			'is_over': self.turn >= self.conversation_length or self.consecutive_pauses >= 3,
 		}
 
+	def final_scores(self) -> dict[uuid.UUID, float]:
+		return self.__calculate_scores()
+
 	def step(self) -> Optional[dict]:
 		if self.turn >= self.conversation_length or self.consecutive_pauses >= 3:
 			return None
