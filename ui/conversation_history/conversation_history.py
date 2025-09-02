@@ -16,6 +16,7 @@ class ConversationHistory:
 		self.scroll_offset = 0
 		self.rect = pg.Rect(x, y, width, max_height)
 		self.message_spacing = 5
+		self.title_font = pg.font.SysFont(None, 24, bold=True)
 
 	def add_message(self, item: Item, sender: str):
 		new_message = Message(
@@ -51,15 +52,27 @@ class ConversationHistory:
 	def draw(self, surface: pg.Surface):
 		pg.draw.rect(surface, BLACK, self.rect, width=2)
 
-		message_surface = pg.Surface((self.width, self.max_height), pg.SRCALPHA)
+		title_text = 'Conversation History'
+		title_surface = self.title_font.render(title_text, True, BLACK)
+		title_x = self.x + (self.width - title_surface.get_width()) / 2
+		title_y = self.y + 5
+		surface.blit(title_surface, (title_x, title_y))
 
+		title_height_offset = title_surface.get_height() + 10
+		messages_rect = pg.Rect(
+			self.x, self.y + title_height_offset, self.width, self.max_height - title_height_offset
+		)
+
+		messages_content_surface = pg.Surface(
+			(messages_rect.width, messages_rect.height), pg.SRCALPHA
+		)
+
+		y_offset = self.scroll_offset
 		for message in self.messages:
-			message_surface.blit(
-				message.image,
-				(message.rect.x - self.x, message.rect.y - self.y + self.scroll_offset),
-			)
+			messages_content_surface.blit(message.image, (message.rect.x - self.x, y_offset))
+			y_offset += message.rect.height + 5
 
-		surface.blit(message_surface, self.rect)
+		surface.blit(messages_content_surface, messages_rect.topleft)
 
 	def clear(self):
 		self.messages.clear()
