@@ -6,6 +6,7 @@ from core.engine import Engine
 from ui.base import SCREEN_HEIGHT, SCREEN_WIDTH, WHITE
 from ui.conversation_history.conversation_history import ConversationHistory
 from ui.player_sidepanel.player_sidepanel import PlayerSidepanel
+from ui.proposals import Proposals
 from ui.turn_display import TurnDisplay
 
 
@@ -29,12 +30,17 @@ class Game:
 		chatbox_x = side_panel_x + side_panel_width + 10
 		chatbox_y = 25
 		chatbox_width = SCREEN_WIDTH * 0.35
-		chatbox_height = SCREEN_HEIGHT * 0.7
+		chatbox_height = SCREEN_HEIGHT * 0.7 + 10
 
 		turn_display_x = chatbox_x + chatbox_width + 10
 		turn_display_y = 25
 		turn_display_width = SCREEN_WIDTH * 0.35
-		turn_display_height = SCREEN_HEIGHT * 0.7
+		turn_display_height = SCREEN_HEIGHT * 0.15
+
+		proposals_display_x = chatbox_x + chatbox_width + 10
+		proposals_display_y = turn_display_y + turn_display_height + 10
+		proposals_display_width = SCREEN_WIDTH * 0.35
+		proposals_display_height = SCREEN_HEIGHT * 0.55
 
 		self.sidepanel = PlayerSidepanel(
 			snapshots=engine.snapshots,
@@ -52,6 +58,13 @@ class Game:
 
 		self.turn_display = TurnDisplay(
 			turn_display_x, turn_display_y, turn_display_width, turn_display_height
+		)
+
+		self.propsals = Proposals(
+			proposals_display_x,
+			proposals_display_y,
+			proposals_display_width,
+			proposals_display_height,
 		)
 
 		self.running = True
@@ -72,10 +85,12 @@ class Game:
 
 			self.sidepanel.handle_event(event)
 			self.conversation_history.handle_event(event)
+			self.propsals.handle_event(event)
 
 			if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
 				turn_result = self.engine.step()
 				self.turn_display.update_info(turn_result)
+				self.propsals.update_info(turn_result)
 
 				if turn_result is not None and turn_result['item'] is not None:
 					speaker_name = self.player_names.get(str(turn_result['speaker']), 'Unknown')
@@ -86,4 +101,5 @@ class Game:
 		self.sidepanel.update()
 		self.sidepanel.draw(self.screen)
 		self.turn_display.draw(self.screen)
+		self.propsals.draw(self.screen)
 		self.conversation_history.draw(self.screen)
