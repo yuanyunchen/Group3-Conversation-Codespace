@@ -18,11 +18,13 @@ class Proposals(pg.sprite.Sprite):
 		self.messages: list[Message] = []
 		self._total_height = 0
 		self.turn_info = {}
+		self.player_names = {}
 
 		self.update_display()
 
-	def update_info(self, turn_info: dict):
+	def update_info(self, turn_info: dict, player_names: dict):
 		self.turn_info = turn_info
+		self.player_names = player_names
 		self.update_display()
 
 	def update_display(self):
@@ -34,7 +36,7 @@ class Proposals(pg.sprite.Sprite):
 			y_offset = 0
 			for player_id, item in self.turn_info['proposals'].items():
 				if item:
-					speaker_name = player_id
+					speaker_name = self.player_names[player_id]
 					message = Message(item, speaker_name, self.x, y_offset, self.width - 20)
 					self.messages.append(message)
 					y_offset += message.rect.height + 5

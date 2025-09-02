@@ -31,12 +31,12 @@ class Game:
 		turn_display_x = chatbox_x + chatbox_width + 10
 		turn_display_y = 25
 		turn_display_width = SCREEN_WIDTH * 0.35
-		turn_display_height = SCREEN_HEIGHT * 0.15
+		turn_display_height = SCREEN_HEIGHT * 0.10
 
 		proposals_display_x = chatbox_x + chatbox_width + 10
 		proposals_display_y = turn_display_y + turn_display_height + 10
 		proposals_display_width = SCREEN_WIDTH * 0.35
-		proposals_display_height = SCREEN_HEIGHT * 0.55
+		proposals_display_height = SCREEN_HEIGHT * 0.60
 
 		self.sidepanel = PlayerSidepanel(
 			players=engine.players,
@@ -86,7 +86,7 @@ class Game:
 			if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
 				turn_result = self.engine.step()
 				self.turn_display.update_info(turn_result)
-				self.propsals.update_info(turn_result)
+				self.propsals.update_info(turn_result, self.engine.player_names)
 
 				if turn_result is not None and turn_result['item'] is not None:
 					speaker_name = turn_result['speaker_name']
