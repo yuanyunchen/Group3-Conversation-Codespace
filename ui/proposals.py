@@ -31,8 +31,7 @@ class Proposals(pg.sprite.Sprite):
 		self.messages = []
 		self._total_height = 0
 
-		# TODO: Handle None
-		if 'proposals' in self.turn_info:
+		if self.turn_info and 'proposals' in self.turn_info:
 			y_offset = 0
 			for player_id, item in self.turn_info['proposals'].items():
 				if item:
