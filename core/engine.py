@@ -228,7 +228,7 @@ class Engine:
 		return {
 			'turn': self.turn,
 			'speaker_id': speaker,
-			'speaker_name': self.player_names[speaker],
+			'speaker_name': self.player_names.get(speaker, ''),
 			'item': item,
 			'proposals': proposals,
 			'is_over': self.turn >= self.conversation_length or self.consecutive_pauses >= 3,

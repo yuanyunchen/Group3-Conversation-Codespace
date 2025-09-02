@@ -88,8 +88,8 @@ class Game:
 				self.turn_display.update_info(turn_result)
 				self.propsals.update_info(turn_result, self.engine.player_names)
 
-				if turn_result is not None and turn_result['item'] is not None:
-					speaker_name = turn_result['speaker_name']
+				if turn_result:
+					speaker_name = turn_result.get('speaker_name', 'Pause')
 					self.conversation_history.add_message(turn_result['item'], speaker_name)
 
 	def _draw(self):

@@ -18,10 +18,13 @@ class Message(pg.sprite.Sprite):
 		self.update()
 
 	def update(self):
-		item_id_short = str(self.item.id).split('-')[0]
-		text_content = f'ID: {item_id_short} | Importance: {self.item.importance:.2f} | Subjects: {", ".join(map(str, self.item.subjects))}'
+		if self.item is None:
+			text_content = 'Pause...'
+		else:
+			item_id_short = str(self.item.id).split('-')[0]
+			text_content = f'ID: {item_id_short} | Importance: {self.item.importance:.2f} | Subjects: {", ".join(map(str, self.item.subjects))}'
 
-		sender_surface = self.text_font.render(f'{self.sender}:', True, BLACK)
+		sender_surface = self.text_font.render(f'{self.sender}', True, BLACK)
 		text_surface = self.text_font.render(text_content, True, BLACK)
 
 		content_height = sender_surface.get_height() + text_surface.get_height()

@@ -3,13 +3,13 @@ from typing import Type
 from core.engine import Engine
 from models.cli import settings
 from models.player import Player
-from players.random_player import RandomPlayer
+from players.pause_player import PausePlayer
 from ui.gui import run_gui
 
 
 def main():
 	args = settings()
-	players: list[Type[Player]] = [RandomPlayer] * args.players_count
+	players: list[Type[Player]] = [PausePlayer] * args.players_count
 
 	engine = Engine(
 		players=players,
