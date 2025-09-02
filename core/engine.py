@@ -40,6 +40,8 @@ class Engine:
 			for i, player in enumerate(players)
 		]
 
+		self.player_names = {player.id: player.name for player in self.players}
+
 	def __initialize_snapshots(self, player_count) -> list[PlayerSnapshot]:
 		snapshots = []
 
@@ -225,7 +227,8 @@ class Engine:
 		self.turn += 1
 		return {
 			'turn': self.turn,
-			'speaker': speaker,
+			'speaker_id': speaker,
+			'speaker_name': self.player_names[speaker],
 			'item': item,
 			'proposals': proposals,
 			'is_over': self.turn >= self.conversation_length or self.consecutive_pauses >= 3,

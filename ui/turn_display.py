@@ -40,8 +40,8 @@ class TurnDisplay(pg.sprite.Sprite):
 			info_texts.append(self.font.render(item_text, True, BLACK))
 
 			speaker_name = 'N/A'
-			if self.turn_info.get('speaker'):
-				speaker_name = self.turn_info.get('speaker')
+			if self.turn_info.get('speaker_name'):
+				speaker_name = self.turn_info.get('speaker_name')
 			speaker_text = f'Speaker: {speaker_name}'
 			info_texts.append(self.font.render(speaker_text, True, BLACK))
 

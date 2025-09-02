@@ -17,10 +17,6 @@ class Game:
 
 		self.screen = pg.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 		self.engine = engine
-		self.player_names = {
-			str(self.engine.snapshots[0].id): 'Alice',
-			str(self.engine.snapshots[1].id): 'Bob',
-		}
 
 		side_panel_x = 50
 		side_panel_y = 25
@@ -93,7 +89,7 @@ class Game:
 				self.propsals.update_info(turn_result)
 
 				if turn_result is not None and turn_result['item'] is not None:
-					speaker_name = self.player_names.get(str(turn_result['speaker']), 'Unknown')
+					speaker_name = turn_result['speaker_name']
 					self.conversation_history.add_message(turn_result['item'], speaker_name)
 
 	def _draw(self):
