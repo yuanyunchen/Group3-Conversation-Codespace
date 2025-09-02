@@ -41,6 +41,7 @@ class Game:
 
 		self.sidepanel = PlayerSidepanel(
 			players=engine.players,
+			player_contributions=engine.player_contributions,  # Pass initial data
 			x=side_panel_x,
 			y=side_panel_y,
 			width=side_panel_width,
@@ -113,10 +114,11 @@ class Game:
 
 			if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
 				turn_result = self.engine.step()
-				self.turn_display.update_info(turn_result)
-				self.propsals.update_info(turn_result, self.engine.player_names)
+				self.sidepanel.update_contributions(self.engine.player_contributions)
 
 				if turn_result:
+					self.turn_display.update_info(turn_result)
+					self.propsals.update_info(turn_result, self.engine.player_names)
 					speaker_name = turn_result.get('speaker_name', 'Pause')
 					self.conversation_history.add_message(turn_result['item'], speaker_name)
 

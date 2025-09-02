@@ -7,10 +7,18 @@ from ui.player_sidepanel.player_info import PlayerInfo
 
 class PlayerSidepanel(pg.sprite.Sprite):
 	def __init__(
-		self, players: list[Player], x: int, y: int, width: int, height: int, *groups
+		self,
+		players: list[Player],
+		player_contributions: dict,
+		x: int,
+		y: int,
+		width: int,
+		height: int,
+		*groups,
 	) -> None:
 		pg.sprite.Sprite.__init__(self, *groups)
 		self.players = players
+		self.player_contributions = player_contributions
 		self.width = width
 		self.height = height
 		self.image = pg.Surface((width, height), pg.SRCALPHA)
@@ -38,12 +46,20 @@ class PlayerSidepanel(pg.sprite.Sprite):
 		spacing = 10
 
 		for player in self.players:
-			card = PlayerInfo(player=player, x=0, y=y_offset, width=self.content_rect.width)
+			count = len(self.player_contributions.get(player.id, []))
+			card = PlayerInfo(
+				player=player, x=0, y=y_offset, width=self.content_rect.width, contributions=count
+			)
 			y_offset += card.rect.height + spacing
-
 			self.cards.add(card)
 
 		self.content_height = y_offset
+
+	def update_contributions(self, contributions: dict):
+		self.player_contributions = contributions
+		for card in self.cards:
+			count = len(self.player_contributions.get(card.player.id, []))
+			card.set_contributions(count)
 
 	def handle_event(self, event):
 		if event.type == pg.MOUSEBUTTONDOWN:
@@ -71,8 +87,6 @@ class PlayerSidepanel(pg.sprite.Sprite):
 								return card.player
 
 	def update(self):
-		self.cards.update()
-
 		self.image.fill(WHITE)
 		pg.draw.rect(self.image, BLACK, self.image.get_rect(), width=2, border_radius=10)
 
