@@ -86,6 +86,7 @@ class Game:
 				self.running = False
 
 			if self.leaderboard_popup:
+				self.leaderboard_popup.handle_event(event)
 				if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
 					self.leaderboard_popup = None
 				continue
