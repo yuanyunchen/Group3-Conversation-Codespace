@@ -34,7 +34,7 @@ class PlayerPopup(pg.sprite.Sprite):
 			for item in self.player.memory_bank:
 				message = Message(
 					item=item,
-					sender=f'Memory Item (Importance: {item.importance:.2f})',
+					sender='Memory Item',
 					x=0,
 					y=0,
 					max_width=self.width - popup_padding * 2,

@@ -19,7 +19,11 @@ class PlayerInfo(pg.sprite.Sprite):
 		self.image.fill(WHITE)
 
 		pg.draw.rect(
-			surface=self.image, color=BLACK, rect=(0, 0, self.card_width, self.card_height), width=2
+			surface=self.image,
+			color=BLACK,
+			rect=(0, 0, self.card_width, self.card_height),
+			width=2,
+			border_radius=10,
 		)
 
 		text = font.render(f'{self.player.name}', True, BLACK)
