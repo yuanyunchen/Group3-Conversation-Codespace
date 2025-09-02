@@ -34,7 +34,6 @@ class Engine:
 		self.players = [
 			player(
 				snapshot=self.snapshots[i],
-				name=f'Player {i}',
 				conversation_length=self.conversation_length,
 			)
 			for i, player in enumerate(players)

@@ -3,7 +3,7 @@ from typing import Optional
 from models.player import Item, Player, PlayerSnapshot
 
 
-class PausePlayer(Player):
+class Player2(Player):
 	def __init__(self, snapshot: PlayerSnapshot, conversation_length: int) -> None:  # noqa: F821
 		super().__init__(snapshot, conversation_length)
 

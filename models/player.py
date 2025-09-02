@@ -14,9 +14,9 @@ class PlayerSnapshot:
 
 
 class Player(ABC):
-	def __init__(self, snapshot: PlayerSnapshot, name: str, conversation_length: int) -> None:
+	def __init__(self, snapshot: PlayerSnapshot, conversation_length: int) -> None:
 		self.id = snapshot.id
-		self.name = name
+		self.name = type(self).__name__
 		self.preferences = list(snapshot.preferences)
 		self.memory_bank = list(snapshot.memory_bank)
 		self.conversation_length = conversation_length
