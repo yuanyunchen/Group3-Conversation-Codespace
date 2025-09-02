@@ -13,7 +13,7 @@ class Proposals(pg.sprite.Sprite):
 		self.height = height
 		self.rect = pg.Rect(x, y, width, height)
 		self.image = pg.Surface((width, height), pg.SRCALPHA)
-		self.proposals_title_font = pg.font.SysFont(None, 22, bold=True)
+		self.proposals_title_font = pg.font.SysFont(None, 24, bold=True)
 		self.scroll_offset = 0
 		self.messages: list[Message] = []
 		self._total_height = 0
@@ -47,13 +47,21 @@ class Proposals(pg.sprite.Sprite):
 		proposals_title_rect = proposals_title.get_rect(centerx=self.width / 2, top=10)
 		self.image.blit(proposals_title, proposals_title_rect)
 
-		y_offset = proposals_title_rect.bottom + 10 + self.scroll_offset
+		title_height_offset = proposals_title.get_height() + 10
+		messages_rect = pg.Rect(
+			10, title_height_offset, self.width - 20, self.height - title_height_offset - 10
+		)
+
+		messages_content_surface = pg.Surface(
+			(messages_rect.width, messages_rect.height), pg.SRCALPHA
+		)
+
+		y_offset = self.scroll_offset
 		for message in self.messages:
-			message_surface = message.image
-			message_rect = message_surface.get_rect(topleft=(10, y_offset))
-			if self.image.get_rect().colliderect(message_rect):
-				self.image.blit(message_surface, message_rect)
-			y_offset += message_surface.get_height() + 5
+			messages_content_surface.blit(message.image, (message.rect.x - self.x, y_offset))
+			y_offset += message.rect.height + 5
+
+		self.image.blit(messages_content_surface, messages_rect.topleft)
 
 	def handle_event(self, event):
 		if event.type == pg.MOUSEBUTTONDOWN:
