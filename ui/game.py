@@ -50,7 +50,7 @@ class Game:
 			x=chatbox_x,
 			y=chatbox_y,
 			width=chatbox_width,
-			max_height=chatbox_height,
+			height=chatbox_height,
 		)
 
 		self.turn_display = TurnDisplay(
