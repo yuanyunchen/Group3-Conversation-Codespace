@@ -11,7 +11,7 @@ class TurnDisplay(pg.sprite.Sprite):
 		self.width = width
 		self.height = height
 		self.rect = pg.Rect(x, y, width, height)
-		self.font = pg.font.SysFont(None, 20)
+		self.font = pg.font.SysFont(None, 24)
 		self.turn_info = {}
 		self.image = pg.Surface((width, height), pg.SRCALPHA)
 		self.update_display()
@@ -33,17 +33,17 @@ class TurnDisplay(pg.sprite.Sprite):
 			turn_text = f'Turn: {self.turn_info.get("turn", 0)}'
 			info_texts.append(self.font.render(turn_text, True, BLACK))
 
-			speaker_name = 'N/A'
-			if self.turn_info.get('speaker'):
-				speaker_name = self.turn_info.get('speaker')
-			speaker_text = f'Speaker: {speaker_name}'
-			info_texts.append(self.font.render(speaker_text, True, BLACK))
-
 			item_id = 'N/A'
 			if self.turn_info.get('item'):
 				item_id = str(self.turn_info['item'].id).split('-')[0]
 			item_text = f'Item ID: {item_id}'
 			info_texts.append(self.font.render(item_text, True, BLACK))
+
+			speaker_name = 'N/A'
+			if self.turn_info.get('speaker'):
+				speaker_name = self.turn_info.get('speaker')
+			speaker_text = f'Speaker: {speaker_name}'
+			info_texts.append(self.font.render(speaker_text, True, BLACK))
 
 		y_offset = 10
 		for text_surface in info_texts:
