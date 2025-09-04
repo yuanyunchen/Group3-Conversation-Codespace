@@ -104,14 +104,6 @@ class Engine:
 
 		return speaker_id, item
 
-	def __calculate_importance_score(
-		self, current_item: Item, unique_items: set[uuid.UUID]
-	) -> float:
-		if current_item.id in unique_items:
-			return 0.0
-		unique_items.add(current_item.id)
-		return current_item.importance
-
 	def __calculate_freshness_score(self, i: int, current_item: Item) -> float:
 		if i == 0 or self.history[i - 1] is not None:
 			return 0.0
@@ -183,10 +175,15 @@ class Engine:
 			if not current_item:
 				continue
 
-			total_shared_score += self.__calculate_importance_score(current_item, unique_items)
+			if current_item.id in unique_items:
+				continue
+
+			total_shared_score += current_item.importance
 			total_shared_score += self.__calculate_coherence_score(i, current_item)
 			total_shared_score += self.__calculate_freshness_score(i, current_item)
 			total_shared_score += self.__calculate_nonmonotonousness_score(i, current_item)
+
+			unique_items.add(current_item.id)
 
 		individual_scores = self.__calculate_individual_score()
 
