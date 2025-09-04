@@ -116,11 +116,17 @@ class Engine:
 		return float(len(novel_subjects))
 
 	def __calculate_coherence_score(self, i: int, current_item: Item) -> float:
-		context_items = [
-			self.history[j]
-			for j in range(max(0, i - 3), min(len(self.history), i + 4))
-			if self.history[j] and j != i
-		]
+		context_items = []
+
+		for j in range(i - 1, max(-1, i - 4), -1):
+			if self.history[j] is None:
+				break
+			context_items.append(self.history[j])
+
+		for j in range(i + 1, min(len(self.history), i + 4)):
+			if self.history[j] is None:
+				break
+			context_items.append(self.history[j])
 
 		context_subject_counts = Counter(s for item in context_items for s in item.subjects)
 		score = 0.0
