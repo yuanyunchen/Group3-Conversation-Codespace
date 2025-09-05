@@ -265,7 +265,6 @@ class Engine:
 			if bonuses:
 				individual_bonus = sum(bonuses) / len(bonuses)
 		impact['individual'] = individual_bonus
-
 		impact['total'] = sum(
 			v
 			for k, v in impact.items()
@@ -307,12 +306,18 @@ class Engine:
 		return self.__turn()
 
 	def run(self, players: list[Type[Player]]):
+		turn_impact = []
+
 		while self.turn < self.conversation_length:
-			self.__turn()
+			impact = self.__turn()
+			turn_impact.append(impact)
 
 			if self.consecutive_pauses >= 3:
 				break
 
 		score_data = self.final_scores()
 		scores = {pid: data['total'] for pid, data in score_data['scores'].items()}
-		return self.history, scores
+
+		output = {'history': self.history, 'turn_impact': turn_impact, 'scores': scores}
+
+		return output

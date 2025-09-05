@@ -1,6 +1,8 @@
+import json
 from typing import Type
 
 from core.engine import Engine
+from core.utils import CustomEncoder
 from models.cli import settings
 from models.player import Player
 from players.pause_player import PausePlayer
@@ -52,26 +54,8 @@ def main():
 	if args.gui:
 		run_gui(engine)
 	else:
-		print('Initializing players...')
-		print('Running conversation simulation...')
-
-		history, scores = engine.run(players)
-
-		print('\n--- Game Simulation Complete ---')
-		print(f'Conversation Length: {len(history)} turns\n')
-
-		print('--- Final Scores ---')
-		for uid, score in scores.items():
-			print(f'Player {str(uid)[:8]}: {score:.2f}')
-
-		print('\n--- Conversation History ---')
-		for i, item in enumerate(history):
-			if item:
-				print(
-					f'Turn {i}: Item ID {str(item.id)[:8]} - Subjects {item.subjects} - Importance {item.importance}'
-				)
-			else:
-				print(f'Turn {i}: No item proposed (Pause)')
+		simulation_results = engine.run(players)
+		print(json.dumps(simulation_results, indent=2, cls=CustomEncoder))
 
 
 if __name__ == '__main__':
