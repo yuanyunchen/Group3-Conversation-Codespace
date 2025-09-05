@@ -198,7 +198,7 @@ class Engine:
 					i, current_item, repeated=False
 				)
 
-			unique_items.add(current_item.id)
+				unique_items.add(current_item.id)
 
 		individual_scores = self.__calculate_individual_score()
 
