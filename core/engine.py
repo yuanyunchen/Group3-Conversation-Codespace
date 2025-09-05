@@ -182,19 +182,24 @@ class Engine:
 		total_shared_score = 0.0
 		unique_items: set[uuid.UUID] = set()
 
+		coherence_score = 0.0
+		freshness_score = 0.0
+		importance_score = 0.0
+		nonmonotonousness = 0.0
+
 		for i, current_item in enumerate(self.history):
 			if not current_item:
 				continue
 
 			if current_item.id in unique_items:
-				total_shared_score += self.__calculate_nonmonotonousness_score(
+				nonmonotonousness += self.__calculate_nonmonotonousness_score(
 					i, current_item, repeated=True
 				)
 			else:
-				total_shared_score += current_item.importance
-				total_shared_score += self.__calculate_coherence_score(i, current_item)
-				total_shared_score += self.__calculate_freshness_score(i, current_item)
-				total_shared_score += self.__calculate_nonmonotonousness_score(
+				importance_score += current_item.importance
+				coherence_score += self.__calculate_coherence_score(i, current_item)
+				freshness_score += self.__calculate_freshness_score(i, current_item)
+				nonmonotonousness += self.__calculate_nonmonotonousness_score(
 					i, current_item, repeated=False
 				)
 
@@ -202,28 +207,50 @@ class Engine:
 
 		individual_scores = self.__calculate_individual_score()
 
-		return total_shared_score, individual_scores
+		total_shared_score = (
+			coherence_score + freshness_score + importance_score + nonmonotonousness
+		)
+
+		return {
+			'shared': total_shared_score,
+			'individual': individual_scores,
+			'coherence': coherence_score,
+			'freshness': freshness_score,
+			'importance': importance_score,
+			'nonmonotonousness': nonmonotonousness,
+		}
 
 	def final_scores(self) -> dict:
-		shared_score, individual_scores = self.__calculate_scores()
+		scores = self.__calculate_scores()
+		shared_score = scores['shared']
+		individual_scores = scores['individual']
 
-		final_results = {}
+		player_results = {}
 		for uid in self.player_names:
 			total_raw_score = shared_score + individual_scores.get(uid, 0.0)
 			conversation_quality = (
 				total_raw_score / self.conversation_length if self.conversation_length > 0 else 0
 			)
 
-			final_results[uid] = {
+			player_results[uid] = {
 				'total': conversation_quality,
 				'shared': shared_score,
 				'individual': individual_scores.get(uid, 0.0),
 			}
 
+		shared_score_breakdown = {
+			'total': scores['shared'],
+			'importance': scores['importance'],
+			'coherence': scores['coherence'],
+			'freshness': scores['freshness'],
+			'nonmonotonousness': scores['nonmonotonousness'],
+		}
+
 		return {
 			'conversation_length': len(self.history),
 			'pauses': self.history.count(None),
-			'scores': final_results,
+			'player_scores': player_results,
+			'shared_score_breakdown': shared_score_breakdown,
 		}
 
 	def _calculate_turn_score_impact(self, item: Optional[Item]) -> dict:
@@ -316,8 +343,13 @@ class Engine:
 				break
 
 		score_data = self.final_scores()
-		scores = {pid: data['total'] for pid, data in score_data['scores'].items()}
+		scores = {pid: data['total'] for pid, data in score_data['player_scores'].items()}
 
-		output = {'history': self.history, 'turn_impact': turn_impact, 'scores': scores}
+		output = {
+			'history': self.history,
+			'turn_impact': turn_impact,
+			'score_breakdown': score_data['shared_score_breakdown'],
+			'scores': scores,
+		}
 
 		return output
