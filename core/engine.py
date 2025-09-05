@@ -139,7 +139,12 @@ class Engine:
 
 		return score
 
-	def __calculate_nonmonotonousness_score(self, i: int, current_item: Item) -> float:
+	def __calculate_nonmonotonousness_score(
+		self, i: int, current_item: Item, repeated: bool
+	) -> float:
+		if repeated:
+			return -1.0
+
 		if i < 3:
 			return 0.0
 
@@ -182,12 +187,16 @@ class Engine:
 				continue
 
 			if current_item.id in unique_items:
-				continue
-
-			total_shared_score += current_item.importance
-			total_shared_score += self.__calculate_coherence_score(i, current_item)
-			total_shared_score += self.__calculate_freshness_score(i, current_item)
-			total_shared_score += self.__calculate_nonmonotonousness_score(i, current_item)
+				total_shared_score += self.__calculate_nonmonotonousness_score(
+					i, current_item, repeated=True
+				)
+			else:
+				total_shared_score += current_item.importance
+				total_shared_score += self.__calculate_coherence_score(i, current_item)
+				total_shared_score += self.__calculate_freshness_score(i, current_item)
+				total_shared_score += self.__calculate_nonmonotonousness_score(
+					i, current_item, repeated=False
+				)
 
 			unique_items.add(current_item.id)
 
