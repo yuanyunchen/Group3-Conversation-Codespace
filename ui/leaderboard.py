@@ -96,7 +96,7 @@ class Leaderboard(pg.sprite.Sprite):
 
 		headers_y = stats_rect.bottom + 30
 		col_width = self.content_rect.width / 4
-		headers = ['Player', 'Total Score', 'Shared Score', 'Individual Score']
+		headers = ['Player', 'Total Score per Turn', 'Shared Score', 'Individual Score']
 		for i, header in enumerate(headers):
 			header_surface = self.header_font.render(header, True, BLACK)
 			header_rect = header_surface.get_rect(
