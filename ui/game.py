@@ -33,12 +33,12 @@ class Game:
 		turn_display_x = chatbox_x + chatbox_width + 10
 		turn_display_y = 25
 		turn_display_width = SCREEN_WIDTH * 0.35
-		turn_display_height = SCREEN_HEIGHT * 0.10
+		turn_display_height = SCREEN_HEIGHT * 0.30
 
 		proposals_display_x = chatbox_x + chatbox_width + 10
 		proposals_display_y = turn_display_y + turn_display_height + 10
 		proposals_display_width = SCREEN_WIDTH * 0.35
-		proposals_display_height = SCREEN_HEIGHT * 0.80
+		proposals_display_height = SCREEN_HEIGHT * 0.60
 
 		self.sidepanel = PlayerSidepanel(
 			players=engine.players,

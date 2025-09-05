@@ -226,6 +226,54 @@ class Engine:
 			'scores': final_results,
 		}
 
+	def _calculate_turn_score_impact(self, item: Optional[Item]) -> dict:
+		if item is None:
+			return {'total': 0.0}
+
+		turn_idx = len(self.history) - 1
+		impact = {}
+
+		is_repeated = any(
+			existing_item and existing_item.id == item.id for existing_item in self.history[:-1]
+		)
+
+		if is_repeated:
+			impact['importance'] = 0.0
+			impact['coherence'] = 0.0
+			impact['freshness'] = 0.0
+			impact['nonmonotonousness'] = self.__calculate_nonmonotonousness_score(
+				turn_idx, item, repeated=True
+			)
+		else:
+			impact['importance'] = item.importance
+			impact['coherence'] = self.__calculate_coherence_score(turn_idx, item)
+			impact['freshness'] = self.__calculate_freshness_score(turn_idx, item)
+			impact['nonmonotonousness'] = self.__calculate_nonmonotonousness_score(
+				turn_idx, item, repeated=False
+			)
+
+		speaker_id = self.last_player_id
+		snapshot = next((s for s in self.snapshots if s.id == speaker_id), None)
+		individual_bonus = 0.0
+		if snapshot:
+			preferences = snapshot.preferences
+			bonuses = [
+				1 - preferences.index(s) / len(preferences)
+				for s in item.subjects
+				if s in preferences
+			]
+			if bonuses:
+				individual_bonus = sum(bonuses) / len(bonuses)
+		impact['individual'] = individual_bonus
+
+		impact['total'] = sum(
+			v
+			for k, v in impact.items()
+			if k in ['importance', 'coherence', 'freshness', 'nonmonotonousness']
+		)
+
+		return impact
+
 	def __turn(self):
 		proposals = self.__get_proposals()
 		speaker, item = self.__select_speaker(proposals)
@@ -241,6 +289,7 @@ class Engine:
 			self.consecutive_pauses += 1
 
 		self.turn += 1
+		score_impact = self._calculate_turn_score_impact(item)
 		return {
 			'turn': self.turn,
 			'speaker_id': speaker,
@@ -248,6 +297,7 @@ class Engine:
 			'item': item,
 			'proposals': proposals,
 			'is_over': self.turn >= self.conversation_length or self.consecutive_pauses >= 3,
+			'score_impact': score_impact,
 		}
 
 	def step(self) -> Optional[dict]:
