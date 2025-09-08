@@ -1,5 +1,6 @@
 import random
 import uuid
+import heapq
 from collections import Counter
 
 from models.item import Item
