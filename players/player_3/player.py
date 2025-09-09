@@ -1,3 +1,5 @@
+import heapq
+
 from models.player import Item, Player, PlayerSnapshot
 
 
@@ -24,19 +26,9 @@ class Player3(Player):
 	def propose_item(self, history: list[Item]) -> Item | None:
 		seenID = set()
 		for item in history:
-			if item != None:
+			if item is not None:
 				seenID.add(item.id)
-		if len(history) < 2:
-			while True:
-				if len(self.starters) > 0:
-					(score, item_id) = heapq.heappop(self.starters)
-					if item_id in seenID:
-						continue
-					heapq.heappush(self.starters, (score, item_id))
-					return self.ID_dict[item_id]
-				else:
-					return None
-		elif history[-1] == None or history[-2] == None:
+		if len(history) < 2 or history[-1] is None or history[-2] is None:
 			while True:
 				if len(self.starters) > 0:
 					(score, item_id) = heapq.heappop(self.starters)
@@ -48,9 +40,7 @@ class Player3(Player):
 					return None
 		else:
 			goalsuit = history[-2].subjects[0]
-			if goalsuit not in self.blocks:
-				return None
-			elif len(self.blocks[goalsuit]) == 0:
+			if goalsuit not in self.blocks or len(self.blocks[goalsuit]) == 0:
 				return None
 			else:
 				while True:
