@@ -23,7 +23,6 @@ class Player3(Player):
 		# Sets self.starters to be a heap of items that have high importance and high self value 
 		# sets self.blocks to be a heap of items that have high importance
 		optimal_p = Player3.best_p_value(self)
-		print("optimal_p", optimal_p)
 		for item in self.memory_bank:
 			self.ID_dict[item.id] = item
 			if len(item.subjects) == 2:
