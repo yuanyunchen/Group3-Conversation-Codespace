@@ -11,3 +11,13 @@ wheels/
 
 # Misc
 .DS_Store
+
+# Data and output directories
+dataset/
+cache/
+output/
+results/
+
+# Log and temporary files
+*.log
+*.tmp
