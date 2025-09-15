@@ -1,20 +1,22 @@
-from models.player import Item, Player, PlayerSnapshot
+from models.player import Item, Player, PlayerSnapshot, GameContext
 from .utils import ConversationScorer
 
 import heapq
 
+DEFAULT_SPEAK_PANELTY = 0
+
 class BayesianTreeNode():
-	def __init__(self, prior_probability, memory, score, father=None):
-		self.prior_probability = prior_probability 
-		self.memory = memory 
-		self.score = score 
-		self.father = father 
-		self.childs = []
-		# self.max_post_expectation = None 
-		# self.best_child = None 
-	
-	def is_leaf(self):
-		return len(self.childs) == 0 
+    def __init__(self, prior_probability, memory, score, father=None):
+        self.prior_probability = prior_probability 
+        self.memory = memory 
+        self.score = score 
+        self.father = father 
+        self.childs = []
+        # self.max_post_expectation = None 
+        # self.best_child = None 
+    
+    def is_leaf(self):
+        return len(self.childs) == 0 
 
     
 class BayesianTree():
@@ -34,12 +36,12 @@ class BayesianTree():
             prior_probability = self.get_child_probability(father)
             
         node = BayesianTreeNode(
-			prior_probability=prior_probability,
-			memory=memory,
-			score=score,
-			# prior_expectation=father.prior_expectation + prior_probability * score,
-			father=father
-		)
+            prior_probability=prior_probability,
+            memory=memory,
+            score=score,
+            # prior_expectation=father.prior_expectation + prior_probability * score,
+            father=father
+        )
         if self.root is None:
             self.root = node
         else:
@@ -152,26 +154,12 @@ class BayesianTreeBeamSearch():
                     tree.leaf_branch_backward_prunning(node)
 
             level += 1
-                    
-    # def backward_get_best_candidate(self, node:BayesianTreeNode, root_for_score:BayesianTreeNode):
-    #     # Recursive: pick the best scoring leaf in the subtree
-    #     if node.is_leaf():
-    #         score = self._compute_normalized_expectation(node, root_for_score)
-    #         return node, score
-    #     best_node = None
-    #     best_score = float('-inf')
-    #     # best_score = self._compute_normalized_expectation(node, root_for_score)
-    #     for child in node.childs:
-    #         candidate_node, candidate_score = self.backward_get_best_candidate(child, root_for_score)
-    #         if candidate_score > best_score:
-    #             best_node = candidate_node
-    #             best_score = candidate_score
-    #     return best_node, best_score
     
     def backward_get_best_candidate(self, node:BayesianTreeNode, root_for_score:BayesianTreeNode):
         # Recursive: pick the best scoring leaf in the subtree
         if node.is_leaf():
             score = self._compute_normalized_expectation(node, root_for_score)
+            # return node, score
             return None, score
         best_node = None
         # best_score = float('-inf')
@@ -179,10 +167,11 @@ class BayesianTreeBeamSearch():
         for child in node.childs:
             _, candidate_score = self.backward_get_best_candidate(child, root_for_score)
             if candidate_score > best_score:
+                # best_node = candidate_node
                 best_node = child ## !!!
                 best_score = candidate_score
         return best_node, best_score
-         
+    
     def search(self, items, decay_rate):
         search_tree = BayesianTree(decay_rate, root_probability=2)
         search_tree.add_node()
@@ -193,56 +182,88 @@ class BayesianTreeBeamSearch():
         else:
             return None, 0
 
-            
+
 class BayesianTreeBeamSearchPlayer(Player):
-	def __init__(self, 
-              snapshot: PlayerSnapshot, 
-              conversation_length: int, 
-              competition_rate: float = 0.5,
-              depth=1,
-              breadth=None,
-              breadth_rate=None, 
-              threhold = 0
-              ) -> None:  
+    def __init__(self, 
+                 snapshot: PlayerSnapshot, 
+                 ctx: GameContext, 
+                 depth=1,
+                 breadth=None,
+                 breadth_rate=None,
+                 initial_competition_rate: float = 0.5,
+                 initial_speak_panelty: float = DEFAULT_SPEAK_PANELTY,  ##
+                 static_threhold=None,
+                 ) -> None:  
      
-		super().__init__(snapshot, conversation_length)
-		self.scorer = ConversationScorer(self.preferences, competition_rate)
-		self.depth = depth
-		
-		if breadth is not None:
-			self.breadth = breadth
-		elif breadth_rate is not None:
-			self.breadth = max(1, int(breadth_rate * len(self.memory_bank)))
-		else:
-			self.breadth = len(self.memory_bank) 
-			
-		self.threshold = threhold
+        super().__init__(snapshot, ctx)
+        self.scorer = ConversationScorer(self.preferences, initial_competition_rate)
+        self.depth = depth
+        self.initial_competition_rate = initial_competition_rate
+        self.initial_speak_panelty = initial_speak_panelty
+        self.static_threhold = static_threhold
+        
+        if breadth is not None:
+            self.breadth = breadth
+        elif breadth_rate is not None:
+            self.breadth = max(1, int(breadth_rate * len(self.memory_bank)))
+        else:
+            self.breadth = len(self.memory_bank) 
+            
 
-	def propose_item(self, history: list[Item]) -> Item | None:
-		# Search best item
-		searcher = BayesianTreeBeamSearch(
-			scorer=self.scorer,
-			depth=self.depth,
-			breadth=self.breadth,
-			initial_context_stack=list(history)
-		)
-		best_item, score = searcher.search(self.memory_bank, decay_rate=0.5)
 
-		# Current use the stadic threhold... No behaviour learning. 
-		# if score > self.threhold:
-		if score > self.threshold:
-			return best_item 
-		else:
-			return None 
+# ---------------------------------------------------------------------------------------------------------------------------------------------------
 
-		
+    # question to think about:
+    # use which information to adjust & how: L(conversation_length) ~ T | B ~ S ~ available items | history
+    def set_competition_rate(self, history):
+        return self.initial_competition_rate  # currently use the 
+    
+    def set_speak_panelty(self, history):
+        return self.initial_speak_panelty
+
+# ---------------------------------------------------------------------------------------------------------------------------------------------------
+    
+    def propose_item(self, history: list[Item]) -> Item | None: 
+        # 1, set the hyperparameters
+        competition_rate = self.set_competition_rate(history) # with suitable parameters. 
+        self.scorer.set_competition_rate(competition_rate)
+        
+        # 2, Search best item with highest scores. 
+        searcher = BayesianTreeBeamSearch(
+            scorer=self.scorer,
+            depth=self.depth,
+            breadth=self.breadth,
+            initial_context_stack=list(history)
+        )
+        best_item, score = searcher.search(self.memory_bank, decay_rate=0.5)
+
+        # 3, decide whether to propose
+        # (1) get the threhold
+        if self.static_threhold is not None:
+            threhold = self.static_threhold
+        else:
+            speak_panelty = self.set_speak_panelty(history)
+            DEFULT_DISCOUNT_RATE = 0.1
+            DEFULT_CONTEXT_LENGTH = 10
+            score_expectation = self.scorer.calculate_expected_score(history, mode="discount_average")
+            threhold = score_expectation + speak_panelty
+
+        # (2) propose or keep silient    
+        if score  > threhold:
+            return best_item 
+        else:
+            return None 
+        
+
+
+        
 
 # update: allow stop in the search. 
 
 # update: scoring ~ normalized by total probability
 
 # Next: 1, dynamic threhold based on history (shared) + individual 
-# 		2, threhold during searching? 
-# 		3, change based on global parameters? P,B,S,L,T?
-# 		4, Bahavior Modeling by score estimation (Sequence modeling + online learning)
+#       2, threhold during searching? 
+#       3, change based on global parameters? P,B,S,L,T?
+#       4, Bahavior Modeling by score estimation (Sequence modeling + online learning)
 

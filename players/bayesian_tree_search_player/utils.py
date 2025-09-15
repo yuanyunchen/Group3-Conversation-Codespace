@@ -2,12 +2,20 @@ from collections import Counter
 # from models.player import Item
 from models.item import Item
 
+
+DEFAULT_DISCOUNT_RATE = 0.9
+DEFAULT_CONTEXT_LENGTH = 10
+
+
 class ConversationScorer:
 	"""Handles all score calculations for conversation items."""
 	
 	def __init__(self, player_preferences: list[int], competition_rate=0.5):
 		self.competition_rate = competition_rate 
 		self.player_preferences = player_preferences
+
+	def set_competition_rate(self, rate: float) -> None:
+		self.competition_rate = rate
 
 	def is_repeated(self, item: Item, history: list[Item]) -> bool:
 		"""Check if item was already used in conversation."""
@@ -145,3 +153,51 @@ class ConversationScorer:
 				(1 - self.competition_rate) * shared_score
 			)
 		return weighted_score
+
+
+	def calculate_expected_score(self, history: list[Item], mode: str = "discount_average", context_length: int = DEFAULT_CONTEXT_LENGTH, discount_rate: float = DEFAULT_DISCOUNT_RATE) -> float:
+		"""
+		Compute an expected score from recent history using this scorer.
+
+		- mode == "average": simple average of recent, non-empty turns
+		- mode == "discount_average": exponentially discounted average with rate discount_rate
+
+		context_length controls how many most-recent turns to consider.
+		"""
+		if mode == "average":
+			discount_rate = 0
+   
+		if not history:
+			return 0.0
+
+		# Consider the last `context_length` turns
+		start_index = max(0, len(history) - context_length)
+		recent_indices = list(range(start_index, len(history)))
+
+		# Build scores for non-None turns using the state as it was before that turn
+		scored: list[tuple[int, float]] = []  # (rank_from_end, score)
+		for j in recent_indices:
+			item = history[j]
+			if item is None:
+				continue
+			# history before item was proposed at turn j
+			prior_history = history[:j]
+			score = self.evaluate(item, prior_history)
+			rank_from_end = (len(history) - 1) - j  # 0 for most recent
+			scored.append((rank_from_end, score))
+
+		if not scored:
+			return 0.0
+
+		# Discounted average (recent turns weigh more)
+		sum_w = 0.0
+		sum_ws = 0.0
+		base = max(0.0, min(1.0, 1.0 - discount_rate))
+		for rank, s in scored:
+			w = base ** rank
+			sum_w += w
+			sum_ws += w * s
+
+		return sum_ws / sum_w if sum_w > 0 else 0.0
+
+

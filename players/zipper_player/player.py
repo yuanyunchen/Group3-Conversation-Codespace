@@ -1,11 +1,11 @@
 import heapq
 
 from models.item import Item
-from models.player import Player, PlayerSnapshot
+from models.player import GameContext, Player, PlayerSnapshot
 
 class ZipperPlayer(Player):
-	def __init__(self, snapshot: PlayerSnapshot, conversation_length: int) -> None:  # noqa: F821
-		super().__init__(snapshot, conversation_length)
+	def __init__(self, snapshot: PlayerSnapshot, ctx: GameContext) -> None:  # noqa: F821
+		super().__init__(snapshot, ctx)
 		self.ID_dict = dict()
 		self.starters = []
 		self.blocks = dict()

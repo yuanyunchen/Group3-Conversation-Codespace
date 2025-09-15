@@ -4,21 +4,23 @@
 # player to teset (primary focus player)
 # test_player="p_bst_medium"
 
-test_player="p_balanced_greedy"
+test_player="p3"
 
 # global setting: (default L 10, B 10, S 20)
-L=200  
-B=500
+L=50  
+B=10
 S=20
 
 # derived round/output settings
 root="results"
-round_name="test_good_players_0913_${test_player}"
-# round_name="test_threhold_3rounds_0912_${test_player}"
+# round_name="test_good_players_0913_${test_player}"
+
+round_name="test_before_commit_0915_${test_player}"
+
 output_root="$root/${round_name}_L${L}B${B}S${S}"
 
 # test mode control
-gui_on="false"  
+gui_on="true"  
 rounds=10 # random rounds with same setting. 
 detailed_on="true" # detailed
 
@@ -40,19 +42,19 @@ rounds_flag="--rounds $rounds"
 
 #          ◅▯◊║◊▯▻   Test Case   ◅▯◊║◊▯▻
 
-# # collaboration
+# # # collaboration
 python main.py --player $test_player 10 --length $L --memory_size $B --subjects $S --output_path "$output_root/self_collaboration" --test_player $test_player $gui_flag $rounds_flag $detailed_flag
 
 
-# # against random player
-python main.py --player $test_player 2 --player pr 8 --length $L --memory_size $B --subjects $S --output_path "$output_root/against_random_player" --test_player $test_player $gui_flag $rounds_flag $detailed_flag
+# # # against random player
+# python main.py --player $test_player 2 --player pr 8 --length $L --memory_size $B --subjects $S --output_path "$output_root/against_random_player" --test_player $test_player $gui_flag $rounds_flag $detailed_flag
 
 
 # complex environment
 # include: pr, p_zipper, p_selfless_greedy, p_selfish_greedy, p_bst_low, p_bst_medium, p_bst_high
 # player_list="pr p_zipper p_selfless_greedy p_selfish_greedy p_balanced_greedy p_bst_low p_bst_medium p_bst_high"
-# player_list="pr p_zipper p_selfless_greedy p_selfish_greedy p_balanced_greedy p_bst_low p_bst_medium"
-player_list="p_zipper p_selfless_greedy p_balanced_greedy p_bst_low"
+player_list="pr p_zipper p_selfless_greedy p_selfish_greedy p_balanced_greedy p_bst_low p_bst_medium"
+# player_list="p_zipper p_selfless_greedy p_balanced_greedy p_bst_low"
 
 cmd="python main.py"
 player_added=false
