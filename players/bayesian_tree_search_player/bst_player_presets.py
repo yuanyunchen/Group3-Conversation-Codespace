@@ -221,7 +221,6 @@ class BayesianTreeBeamSearchPlayer(Player):
     def set_speak_panelty(self, history):
         return self.initial_speak_panelty
 
-# ---------------------------------------------------------------------------------------------------------------------------------------------------
     
     def propose_item(self, history: list[Item]) -> Item | None: 
         # 1, set the hyperparameters
@@ -245,7 +244,10 @@ class BayesianTreeBeamSearchPlayer(Player):
             speak_panelty = self.set_speak_panelty(history)
             DEFULT_DISCOUNT_RATE = 0.1
             DEFULT_CONTEXT_LENGTH = 10
-            score_expectation = self.scorer.calculate_expected_score(history, mode="discount_average")
+            score_expectation = self.scorer.calculate_expected_score(history, 
+                                                                     mode="discount_average",
+                                                                     discount_rate=DEFULT_DISCOUNT_RATE,
+                                                                     context_length=DEFULT_CONTEXT_LENGTH)
             threhold = score_expectation + speak_panelty
 
         # (2) propose or keep silient    

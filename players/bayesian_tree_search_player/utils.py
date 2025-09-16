@@ -3,10 +3,6 @@ from collections import Counter
 from models.item import Item
 
 
-DEFAULT_DISCOUNT_RATE = 0.9
-DEFAULT_CONTEXT_LENGTH = 10
-
-
 class ConversationScorer:
 	"""Handles all score calculations for conversation items."""
 	
@@ -155,7 +151,7 @@ class ConversationScorer:
 		return weighted_score
 
 
-	def calculate_expected_score(self, history: list[Item], mode: str = "discount_average", context_length: int = DEFAULT_CONTEXT_LENGTH, discount_rate: float = DEFAULT_DISCOUNT_RATE) -> float:
+	def calculate_expected_score(self, history: list[Item], mode: str = "discount_average", context_length: int = None, discount_rate: float =None) -> float:
 		"""
 		Compute an expected score from recent history using this scorer.
 
@@ -164,6 +160,13 @@ class ConversationScorer:
 
 		context_length controls how many most-recent turns to consider.
 		"""
+		# default: all turns
+		if not context_length:
+			context_length = len(history)
+
+		# default: use unweighted average. 
+		if not discount_rate:
+			discount_rate = 0
 		if mode == "average":
 			discount_rate = 0
    
