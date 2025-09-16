@@ -213,6 +213,15 @@ class BayesianTreeBeamSearchPlayer(Player):
 
 # ---------------------------------------------------------------------------------------------------------------------------------------------------
 
+    # # For your convenience - game state variables:
+    # P = len(self.ctx.players)  # number of players in the game
+    # B = len(self.memory_bank)  # memory bank size (number of items each player has)
+    # S = self.ctx.num_subjects  # number of subjects available in the game
+    # T = len(history)  # current turn/round number
+    # L = self.ctx.conversation_length  # target conversation length
+    
+    # calculate the socres: self.scorer -> ./utils/ConverstationScorer
+    
     # question to think about:
     # use which information to adjust & how: L(conversation_length) ~ T | B ~ S ~ available items | history
     def set_competition_rate(self, history):

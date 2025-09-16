@@ -109,6 +109,7 @@ class ConversationScorer:
 			return sum(bonuses) / len(bonuses)
 		return 0.0
 
+
 	def calculate_shared_score(self, item, history):
 		"""Calculate total score impact for adding this item (replicating Engine logic)."""
 		position = len(history)
@@ -121,9 +122,8 @@ class ConversationScorer:
 			freshness = 0.0
 		else:
 			importance = item.importance
-			# ORIGINAL (BST added retroactive update):
-			coherence = self.calculate_coherence_score(item, position, history) + self.calculate_others_coherence_score_update(item, position, history)
-			# coherence = self.calculate_coherence_score(item, position, history)
+			# Match Engine: use only self coherence at this position (no retroactive updates)
+			coherence = self.calculate_coherence_score(item, position, history)
 			freshness = self.calculate_freshness_score(item, position, history)
 
 		nonmonotonousness = self.calculate_nonmonotonousness_score(item, position, history, is_repeated)
@@ -131,6 +131,35 @@ class ConversationScorer:
 		# Total shared score (do not include retroactive coherence updates to match Engine)
 		shared_total = importance + coherence + freshness + nonmonotonousness
 		return shared_total
+
+	def calculate_shared_score_at_position(self, history: list[Item], position: int) -> float:
+		"""Calculate shared score for the item already at a given position in history.
+
+		This evaluates the contribution of the existing item at `position` using the
+		Engine-aligned logic (no retroactive coherence updates), respecting pauses.
+		"""
+		# Validate bounds and presence
+		if position < 0 or position >= len(history):
+			return 0.0
+		item = history[position]
+		if item is None:
+			return 0.0
+
+		# Repetition only counts if the same item appeared earlier
+		prior_history = history[:position]
+		is_repeated = any(existing_item and existing_item.id == item.id for existing_item in prior_history)
+
+		if is_repeated:
+			importance = 0.0
+			coherence = 0.0
+			freshness = 0.0
+		else:
+			importance = item.importance
+			coherence = self.calculate_coherence_score(item, position, history)
+			freshness = self.calculate_freshness_score(item, position, history)
+
+		nonmonotonousness = self.calculate_nonmonotonousness_score(item, position, history, is_repeated)
+		return importance + coherence + freshness + nonmonotonousness
 
 	def calculate_total_score(self, item: Item, history: list[Item]) -> float:
 		# Individual score
@@ -141,6 +170,17 @@ class ConversationScorer:
   
 		return shared_total + individual
 	
+	def calculate_weighted_score(self, item: Item, history: list[Item]) -> float:
+		"""Calculate weighted score combining individual and shared components."""
+		individual_score = self.calculate_individual_score(item)
+		shared_score = self.calculate_shared_score(item, history)
+		weighted_score = (
+			self.competition_rate * individual_score + 
+			(1 - self.competition_rate) * shared_score
+		)
+		return weighted_score
+	
+ 
 	def evaluate(self, item, history: list[Item]):
 		individual_score = self.calculate_individual_score(item)
 		shared_score = self.calculate_shared_score(item, history)
@@ -193,6 +233,50 @@ class ConversationScorer:
 			return 0.0
 
 		# Discounted average (recent turns weigh more)
+		sum_w = 0.0
+		sum_ws = 0.0
+		base = max(0.0, min(1.0, 1.0 - discount_rate))
+		for rank, s in scored:
+			w = base ** rank
+			sum_w += w
+			sum_ws += w * s
+
+		return sum_ws / sum_w if sum_w > 0 else 0.0
+
+	def calculate_expected_shared_score(self, history: list[Item], mode: str = "discount_average", context_length: int = None, discount_rate: float = None) -> float:
+		"""Expected shared score over recent turns using position-based shared scoring.
+
+		- mode == "average": unweighted average
+		- mode == "discount_average": exponentially discounted average
+		"""
+		# default: all turns
+		if not context_length:
+			context_length = len(history)
+
+		# default: use unweighted average.
+		if not discount_rate:
+			discount_rate = 0
+		if mode == "average":
+			discount_rate = 0
+
+		if not history:
+			return 0.0
+
+		start_index = max(0, len(history) - context_length)
+		recent_indices = list(range(start_index, len(history)))
+
+		scored: list[tuple[int, float]] = []
+		for j in recent_indices:
+			if history[j] is None:
+				continue
+			# Use position-based shared scoring that only considers past at that position
+			shared = self.calculate_shared_score_at_position(history, j)
+			rank_from_end = (len(history) - 1) - j
+			scored.append((rank_from_end, shared))
+
+		if not scored:
+			return 0.0
+
 		sum_w = 0.0
 		sum_ws = 0.0
 		base = max(0.0, min(1.0, 1.0 - discount_rate))
