@@ -121,43 +121,39 @@ class BayesianTreeBeamSearch():
     def forward_construct_search_tree(self, items, tree: BayesianTree, start_node=None):
         if start_node is None:
             start_node = tree.root
-
+            
+        level = 0
         leaves = [start_node]
         context_stack = self.context_stack
-        depth = 0
-
-        while leaves and depth < self.depth:
+        while level < self.depth:
+            # traverse all nodes
             next_level_candidates = []
             for leaf in leaves:
-                # Stop expanding once a pause has been chosen, preserving branch length
-                if leaf.memory is None and leaf is not start_node:
-                    next_level_candidates.append(leaf)
-                    continue
-
                 branch_nodes = self._tree_branch_to_list(leaf, start_node)
+                # Ensure only non-None item memories are used in context
                 branch_items = [n.memory for n in branch_nodes if n.memory is not None]
                 context_stack.extend(branch_items)
-
                 for item in items:
                     score = self.scorer.evaluate(item, context_stack)
-                    next_level_candidates.append(tree.add_node(leaf, item, score))
-
-                # Insert pause without trimming it in later iterations
+                    new_node = tree.add_node(leaf, item, score)
+                    next_level_candidates.append(new_node)
+                # Add pause option (no item contributed on this branch)
                 pause_node = tree.add_node(leaf, None, 0.0)
                 next_level_candidates.append(pause_node)
-
+                # context_stack = context_stack[:-level-1]
+                # del context_stack[-len(branch_list):]
                 if branch_items:
                     del context_stack[-len(branch_items):]
-
-            # Select top candidates; pause nodes stay if selected here
+                
+            # global selection
             leaves = self._find_top_nodes(next_level_candidates, start_node)
-
-            # Remove dominated branches except explicitly retained pause leaves
+            
+            # backward prunnning
             for node in next_level_candidates:
-                if node not in leaves and node.memory is not None:
+                if node not in leaves:
                     tree.leaf_branch_backward_prunning(node)
 
-            depth += 1
+            level += 1
     
     def backward_get_best_candidate(self, node:BayesianTreeNode, root_for_score:BayesianTreeNode):
         # Recursive: pick the best scoring leaf in the subtree
@@ -270,3 +266,4 @@ class BayesianTreeBeamSearchPlayer(Player):
 #       2, threhold during searching? 
 #       3, change based on global parameters? P,B,S,L,T?
 #       4, Bahavior Modeling by score estimation (Sequence modeling + online learning)
+
