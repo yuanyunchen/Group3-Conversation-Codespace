@@ -1,45 +1,48 @@
 import json
 
 from core.engine import Engine
-from core.utils import CustomEncoder
-from core.utils import ConversationAnalyzer
+from core.utils import ConversationAnalyzer, CustomEncoder
 from models.cli import settings
-from ui.gui import run_gui
-
 from models.player import Player
+from players.bayesian_tree_search_player.bst_players import (
+	BayesTreeBeamHigh,
+	BayesTreeBeamLow,
+	BayesTreeBeamMedium,
+	BayesTreeDynamicStandard,
+	BayesTreeDynamicWidth,
+)
+from players.bayesian_tree_search_player.greedy_players import (
+	BalancedGreedyPlayer,
+	SelfishGreedyPlayer,
+	SelflessGreedyPlayer,
+)
 from players.pause_player import PausePlayer
+from players.player_3.player import Player3
 from players.random_player import RandomPlayer
 from players.zipper_player.player import ZipperPlayer
-from players.player_3.player import Player3
+from ui.gui import run_gui
 
-from players.bayesian_tree_search_player.greedy_players import BalancedGreedyPlayer, SelflessGreedyPlayer, SelfishGreedyPlayer
-from players.bayesian_tree_search_player.bst_players import BayesTreeBeamLow, BayesTreeBeamMedium, BayesTreeBeamHigh, BayesTreeDynamicStandard, BayesTreeDynamicWidth
-
-
-### add the mapping here when adding new players. 
+### add the mapping here when adding new players.
 g_player_classes = {
-		'pr': RandomPlayer,
-		'pp': PausePlayer,
-  
-		# Final Player to present.
-		'p3': Player3,
-  
-		# zipper player
-		'p_zipper': ZipperPlayer,
-  
-		# greedy players
-		'p_balanced_greedy': BalancedGreedyPlayer,
-		'p_selfless_greedy': SelflessGreedyPlayer,
-		'p_selfish_greedy': SelfishGreedyPlayer,
-		
-		# bayesian tree + beam search player (different efforts) | balanced competition + no threhold. 
-		'p_bst_low': BayesTreeBeamLow,
-		'p_bst_medium': BayesTreeBeamMedium,
-		'p_bst_high': BayesTreeBeamHigh,
-		'p_bst_dynamic': BayesTreeDynamicStandard,
-		'p_bst_dynamic_width': BayesTreeDynamicWidth,
-		'p_bst_dynamic_depth': BayesTreeDynamicWidth
-	}
+	'pr': RandomPlayer,
+	'pp': PausePlayer,
+	# Final Player to present.
+	'p3': Player3,
+	# zipper player
+	'p_zipper': ZipperPlayer,
+	# greedy players
+	'p_balanced_greedy': BalancedGreedyPlayer,
+	'p_selfless_greedy': SelflessGreedyPlayer,
+	'p_selfish_greedy': SelfishGreedyPlayer,
+	# bayesian tree + beam search player (different efforts) | balanced competition + no threhold.
+	'p_bst_low': BayesTreeBeamLow,
+	'p_bst_medium': BayesTreeBeamMedium,
+	'p_bst_high': BayesTreeBeamHigh,
+	'p_bst_dynamic': BayesTreeDynamicStandard,
+	'p_bst_dynamic_width': BayesTreeDynamicWidth,
+	'p_bst_dynamic_depth': BayesTreeDynamicWidth,
+}
+
 
 def main():
 	args = settings()
@@ -51,11 +54,14 @@ def main():
 			players.extend([g_player_classes[player_name]] * count)
 
 	import os
+
 	analyzer = ConversationAnalyzer()
 
 	# Minimal CLI output: settings and players
-	print(f"Settings: length={args.length}, memory_size={args.memory_size}, subjects={args.subjects}, rounds={args.rounds}, detailed={args.detailed}")
-	print(f"Players: {args.players}")
+	print(
+		f'Settings: length={args.length}, memory_size={args.memory_size}, subjects={args.subjects}, rounds={args.rounds}, detailed={args.detailed}'
+	)
+	print(f'Players: {args.players}')
 
 	if args.gui:
 		engine = Engine(
@@ -82,9 +88,9 @@ def main():
 		rounds = max(1, args.rounds)
 		base_seed = args.seed
 		if _trange is None and rounds > 1:
-			print(f"Rounds: {rounds}")
+			print(f'Rounds: {rounds}')
 
-		for r in (range(rounds) if _trange is None or rounds <= 1 else _trange(rounds)):
+		for r in range(rounds) if _trange is None or rounds <= 1 else _trange(rounds):
 			seed = base_seed + r
 			engine = Engine(
 				players=players,
@@ -124,54 +130,72 @@ def main():
 				acc['avg_involvement_ratio'] += float(row['involvement_ratio'])
 				# capture contributed individual per round as well if present
 				if 'contributed_individual_score' in row:
-					acc['contributed_individual_score'] = acc.get('contributed_individual_score', 0.0) + float(row['contributed_individual_score'])
+					acc['contributed_individual_score'] = acc.get(
+						'contributed_individual_score', 0.0
+					) + float(row['contributed_individual_score'])
 				acc['importance'] += float(row['importance'])
 				acc['coherence'] += float(row['coherence'])
 				acc['freshness'] += float(row['freshness'])
 				acc['nonmonotone'] += float(row['nonmonotone'])
 
 			if args.detailed:
-				round_dir = os.path.join(args.output_path, f'round_{r+1}')
+				round_dir = os.path.join(args.output_path, f'round_{r + 1}')
 				os.makedirs(round_dir, exist_ok=True)
 				# JSON
 				json_path = os.path.join(round_dir, 'simulation_results.json')
 				with open(json_path, 'w') as f:
 					json.dump(simulation_results, f, cls=CustomEncoder, indent=2)
 				# TXT
-				text = analyzer.raw_data_to_human_readable(simulation_results, engine=engine, test_player=args.test_player)
+				text = analyzer.raw_data_to_human_readable(
+					simulation_results, engine=engine, test_player=args.test_player
+				)
 				txt_path = os.path.join(round_dir, 'analysis.txt')
 				with open(txt_path, 'w') as f:
 					f.write(text)
 				# CSV per round
 				csv_path = os.path.join(round_dir, 'player_metrics.csv')
-				analyzer.raw_data_to_csv(simulation_results, engine=engine, test_player=args.test_player, csv_path=csv_path)
+				analyzer.raw_data_to_csv(
+					simulation_results,
+					engine=engine,
+					test_player=args.test_player,
+					csv_path=csv_path,
+				)
 
 		# Final per-type averages across rounds → results.csv (same schema as per-round player_metrics.csv)
 		final_rows = []
 		for type_name, sums in per_type_sums.items():
 			cnt = max(1, per_type_counts.get(type_name, 1))
-			final_rows.append({
-				'type': type_name,
-				'player_numbers': int(sums.get('player_numbers', 0)),
-				'score': sums['avg_score'] / cnt,
-				'individual': sums.get('individual', 0.0) / cnt if 'individual' in sums else 0.0,
-				'shared_score': sums['avg_shared_score'] / cnt,
-				'contributed_individual_score': sums.get('contributed_individual_score', 0.0) / cnt,
-				'contributed_shared_score': sums['avg_contributed_shared_score'] / cnt,
-				'involvement_ratio': sums['avg_involvement_ratio'] / cnt,
-				'importance': sums['importance'] / cnt,
-				'coherence': sums['coherence'] / cnt,
-				'freshness': sums['freshness'] / cnt,
-				'nonmonotone': sums['nonmonotone'] / cnt,
-			})
+			final_rows.append(
+				{
+					'type': type_name,
+					'player_numbers': int(sums.get('player_numbers', 0)),
+					'score': sums['avg_score'] / cnt,
+					'individual': sums.get('individual', 0.0) / cnt
+					if 'individual' in sums
+					else 0.0,
+					'shared_score': sums['avg_shared_score'] / cnt,
+					'contributed_individual_score': sums.get('contributed_individual_score', 0.0)
+					/ cnt,
+					'contributed_shared_score': sums['avg_contributed_shared_score'] / cnt,
+					'involvement_ratio': sums['avg_involvement_ratio'] / cnt,
+					'importance': sums['importance'] / cnt,
+					'coherence': sums['coherence'] / cnt,
+					'freshness': sums['freshness'] / cnt,
+					'nonmonotone': sums['nonmonotone'] / cnt,
+				}
+			)
 		# Sort by score desc
 		final_rows.sort(key=lambda r: r['score'], reverse=True)
 		results_csv = os.path.join(args.output_path, 'results.csv')
 		with open(results_csv, 'w', newline='') as f:
-			f.write('type,player_numbers,score,individual,shared_score,involvement_ratio,contributed_individual_score,contributed_shared_score,importance,coherence,freshness,nonmonotone\n')
+			f.write(
+				'type,player_numbers,score,individual,shared_score,involvement_ratio,contributed_individual_score,contributed_shared_score,importance,coherence,freshness,nonmonotone\n'
+			)
 			for r in final_rows:
-				f.write(f"{r['type']},{r.get('player_numbers',0)},{r['score']:.2f},{r['individual']:.2f},{r['shared_score']:.2f},{r['involvement_ratio']:.2f},{r.get('contributed_individual_score',0.0):.2f},{r['contributed_shared_score']:.2f},{r['importance']:.2f},{r['coherence']:.2f},{r['freshness']:.2f},{r['nonmonotone']:.2f}\n")
-	
+				f.write(
+					f'{r["type"]},{r.get("player_numbers", 0)},{r["score"]:.2f},{r["individual"]:.2f},{r["shared_score"]:.2f},{r["involvement_ratio"]:.2f},{r.get("contributed_individual_score", 0.0):.2f},{r["contributed_shared_score"]:.2f},{r["importance"]:.2f},{r["coherence"]:.2f},{r["freshness"]:.2f},{r["nonmonotone"]:.2f}\n'
+				)
+
 
 if __name__ == '__main__':
 	main()

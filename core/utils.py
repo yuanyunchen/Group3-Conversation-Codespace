@@ -1,12 +1,11 @@
-import json
 import csv
+import json
 import os
 import uuid
-from collections import defaultdict, Counter
-from typing import Optional, Dict, List, Any
+from collections import Counter, defaultdict
+from typing import Any
 
 from models.item import Item
-
 
 # Global float precision control for all formatted numeric outputs in this module
 FLOAT_PRECISION = 4
@@ -33,7 +32,6 @@ class CustomEncoder(json.JSONEncoder):
 
 		return super().default(obj)
 
-
 	def iterencode(self, obj, _one_shot=False):
 		# Sanitize dict keys before encoding to avoid UUID keys errors
 		sanitized_obj = self._sanitize_keys(obj)
@@ -43,6 +41,7 @@ class CustomEncoder(json.JSONEncoder):
 class ConversationAnalyzer:
 	def __init__(self):
 		pass
+
 	def compute_round_averages(self, per_round_metrics: list[dict[str, float]]) -> dict[str, float]:
 		"""Compute averages from a list of per-round metric dicts with keys:
 		- quality_score, contributed_score, involvement_ratio
@@ -64,7 +63,9 @@ class ConversationAnalyzer:
 			'avg_involvement_ratio': total_i / n if n else 0.0,
 		}
 
-	def compute_type_averages(self, simulation_results: Dict[str, Any], engine=None) -> list[dict[str, Any]]:
+	def compute_type_averages(
+		self, simulation_results: dict[str, Any], engine=None
+	) -> list[dict[str, Any]]:
 		"""Compute per-type averages for CSV output.
 		Returns list of rows with keys:
 		- type, avg_score, avg_shared_score, avg_involvement_ratio,
@@ -73,10 +74,12 @@ class ConversationAnalyzer:
 		scores = simulation_results['scores']
 
 		# Per-player contributed from speaking rounds
-		per_player, per_type_contribs, _, per_type_counts = self._aggregate_speaking_contributions(simulation_results, engine)
+		per_player, per_type_contribs, _, per_type_counts = self._aggregate_speaking_contributions(
+			simulation_results, engine
+		)
 
 		# Gather per-type player lists for averaging player-based metrics
-		type_to_players: Dict[str, list[int]] = defaultdict(list)
+		type_to_players: dict[str, list[int]] = defaultdict(list)
 		for i, player_result in enumerate(scores['player_scores']):
 			ptype = type(engine.players[i]).__name__ if engine else 'Unknown'
 			type_to_players[ptype].append(i)
@@ -86,19 +89,32 @@ class ConversationAnalyzer:
 			if not indices:
 				continue
 			# conversation length for normalization
-			conversation_length = scores.get('conversation_length', len(simulation_results.get('history', [])))
+			conversation_length = scores.get(
+				'conversation_length', len(simulation_results.get('history', []))
+			)
 			L = max(1, conversation_length)
 			# Average of player quality scores in this type (already normalized by Engine)
-			score_avg = sum(float(scores['player_scores'][i]['scores']['total']) for i in indices) / len(indices)
+			score_avg = sum(
+				float(scores['player_scores'][i]['scores']['total']) for i in indices
+			) / len(indices)
 			# Average of individual scores in this type, normalized by L
-			individual_avg = sum(float(scores['player_scores'][i]['scores']['individual']) / L for i in indices) / len(indices)
+			individual_avg = sum(
+				float(scores['player_scores'][i]['scores']['individual']) / L for i in indices
+			) / len(indices)
 			# Average of shared scores in this type, normalized by L (use Engine's shared total)
-			shared_avg = sum(float(scores['player_scores'][i]['scores']['shared']) / L for i in indices) / len(indices)
+			shared_avg = sum(
+				float(scores['player_scores'][i]['scores']['shared']) / L for i in indices
+			) / len(indices)
 			# Average involvement ratio per player in this type (unchanged definition)
 			# Use conversation-level normalization for participation expectation
-			conversation_length = scores.get('conversation_length', len(simulation_results.get('history', [])))
+			conversation_length = scores.get(
+				'conversation_length', len(simulation_results.get('history', []))
+			)
 			total_participants = len(scores['player_scores'])
-			contrib_counts = [len(engine.player_contributions.get(engine.players[i].id, [])) if engine else 0 for i in indices]
+			contrib_counts = [
+				len(engine.player_contributions.get(engine.players[i].id, [])) if engine else 0
+				for i in indices
+			]
 			involvements = []
 			for c in contrib_counts:
 				if conversation_length > 0 and total_participants > 0:
@@ -116,8 +132,10 @@ class ConversationAnalyzer:
 				'individual': individual_avg,
 				'shared_score': shared_avg,
 				'involvement_ratio': involvement_avg,
-				'contributed_individual_score': float(contribs.get('individual_total', 0.0)) / type_speaking_turns,
-				'contributed_shared_score': float(contribs.get('shared_total', 0.0)) / type_speaking_turns,
+				'contributed_individual_score': float(contribs.get('individual_total', 0.0))
+				/ type_speaking_turns,
+				'contributed_shared_score': float(contribs.get('shared_total', 0.0))
+				/ type_speaking_turns,
 				'importance': float(contribs.get('importance', 0.0)) / type_speaking_turns,
 				'coherence': float(contribs.get('coherence', 0.0)) / type_speaking_turns,
 				'freshness': float(contribs.get('freshness', 0.0)) / type_speaking_turns,
@@ -129,20 +147,20 @@ class ConversationAnalyzer:
 		# Sort rows by avg_score descending
 		rows.sort(key=lambda r: r['score'], reverse=True)
 		return rows
-	
-	def _aggregate_speaking_contributions(self, simulation_results: Dict[str, Any], engine=None):
+
+	def _aggregate_speaking_contributions(self, simulation_results: dict[str, Any], engine=None):
 		"""Aggregate shared score components only from speaking turns per player and per type.
 		Recalculate per-turn impacts using the FINAL conversation history so that
 		future-aware coherence is reflected. Normalize later by speaking counts.
 		Returns: per_player, per_type, per_player_counts, per_type_counts
 		"""
-		per_player: Dict[Any, Dict[str, float]] = {}
-		per_type: Dict[str, Dict[str, float]] = {}
-		per_player_counts: Dict[Any, int] = {}
-		per_type_counts: Dict[str, int] = {}
+		per_player: dict[Any, dict[str, float]] = {}
+		per_type: dict[str, dict[str, float]] = {}
+		per_player_counts: dict[Any, int] = {}
+		per_type_counts: dict[str, int] = {}
 
 		# Map player id -> type name
-		id_to_type: Dict[Any, str] = {}
+		id_to_type: dict[Any, str] = {}
 		if engine:
 			for p in engine.players:
 				id_to_type[p.id] = type(p).__name__
@@ -169,12 +187,24 @@ class ConversationAnalyzer:
 			# Use Engine's scoring functions to match final breakdown
 			if engine:
 				imp = 0.0 if repeated else float(getattr(item, 'importance', 0.0))
-				coh = 0.0 if repeated else float(engine._Engine__calculate_coherence_score(idx, item))
-				fre = 0.0 if repeated else float(engine._Engine__calculate_freshness_score(idx, item))
+				coh = (
+					0.0 if repeated else float(engine._Engine__calculate_coherence_score(idx, item))
+				)
+				fre = (
+					0.0 if repeated else float(engine._Engine__calculate_freshness_score(idx, item))
+				)
 				non = float(engine._Engine__calculate_nonmonotonousness_score(idx, item, repeated))
 				# Individual bonus at speaking time (consistent with Engine)
 				preferences = engine.snapshots.get(speaker_id).preferences if engine else []
-				bonuses = [1 - preferences.index(s) / len(preferences) for s in item.subjects if s in preferences] if preferences else []
+				bonuses = (
+					[
+						1 - preferences.index(s) / len(preferences)
+						for s in item.subjects
+						if s in preferences
+					]
+					if preferences
+					else []
+				)
 				ind = float(sum(bonuses) / len(bonuses)) if bonuses else 0.0
 			else:
 				imp = getattr(item, 'importance', 0.0)
@@ -226,41 +256,50 @@ class ConversationAnalyzer:
 
 		return per_player, per_type, per_player_counts, per_type_counts
 
-	
-	def raw_data_to_human_readable(self, simulation_results: Dict[str, Any], engine=None, test_player: Optional[str] = None) -> str:
+	def raw_data_to_human_readable(
+		self, simulation_results: dict[str, Any], engine=None, test_player: str | None = None
+	) -> str:
 		"""
 		Convert raw simulation results to human-readable analysis report.
-		
+
 		Args:
 			simulation_results: Results from engine.run()
 			engine: Engine instance to get player types and contributions
 			test_player: Name of test player (will be marked with "(test)")
 		"""
 		output = []
-		output.append("CONVERSATION ANALYSIS REPORT")
-		output.append("=" * 60)
-		output.append("")
-		
+		output.append('CONVERSATION ANALYSIS REPORT')
+		output.append('=' * 60)
+		output.append('')
+
 		# Individual Players Analysis
-		individual_analysis = self._analyze_individual_players(simulation_results, engine, test_player)
+		individual_analysis = self._analyze_individual_players(
+			simulation_results, engine, test_player
+		)
 		output.append(individual_analysis)
-		output.append("")
-		output.append("")
-		
+		output.append('')
+		output.append('')
+
 		# Player Types Analysis
 		if engine:
 			type_analysis = self._analyze_player_types(simulation_results, engine)
 			output.append(type_analysis)
-			output.append("")
-			output.append("")
-		
+			output.append('')
+			output.append('')
+
 		# Global Metrics Analysis
 		global_analysis = self._analyze_global_metrics(simulation_results)
 		output.append(global_analysis)
-		
-		return "\n".join(output)
-	
-	def raw_data_to_csv(self, simulation_results: Dict[str, Any], engine=None, test_player: Optional[str] = None, csv_path: Optional[str] = None) -> str:
+
+		return '\n'.join(output)
+
+	def raw_data_to_csv(
+		self,
+		simulation_results: dict[str, Any],
+		engine=None,
+		test_player: str | None = None,
+		csv_path: str | None = None,
+	) -> str:
 		"""
 		Export per-player metrics to CSV.
 
@@ -282,10 +321,12 @@ class ConversationAnalyzer:
 		"""
 		# Defaults
 		if csv_path is None:
-			csv_path = "results/player_metrics.csv"
+			csv_path = 'results/player_metrics.csv'
 
 		scores = simulation_results['scores']
-		conversation_length = scores.get('conversation_length', len(simulation_results.get('history', [])))
+		conversation_length = scores.get(
+			'conversation_length', len(simulation_results.get('history', []))
+		)
 		total_participants = len(scores['player_scores']) if scores.get('player_scores') else 0
 
 		# Collect per-player data
@@ -296,14 +337,14 @@ class ConversationAnalyzer:
 			if engine:
 				player_type = type(engine.players[i]).__name__
 				type_counters[player_type] += 1
-				player_name = f"{player_type}_{type_counters[player_type]}"
+				player_name = f'{player_type}_{type_counters[player_type]}'
 				contributions = len(engine.player_contributions.get(engine.players[i].id, []))
 			else:
-				player_name = f"Player_{i+1}"
+				player_name = f'Player_{i + 1}'
 				contributions = 0
 
 			if test_player and player_name.startswith(test_player):
-				player_name += " (test)"
+				player_name += ' (test)'
 
 			quality_score = float(player_result['scores']['total'])
 			pid = engine.players[i].id if engine else None
@@ -313,47 +354,70 @@ class ConversationAnalyzer:
 			else:
 				involvement_ratio = 0.0
 
-			players_data.append({
-				'name': player_name,
-				'quality_score': quality_score,
-				'contributed_score': contributed_score,
-				'involvement_ratio': float(involvement_ratio),
-				'contributions': contributions,
-			})
+			players_data.append(
+				{
+					'name': player_name,
+					'quality_score': quality_score,
+					'contributed_score': contributed_score,
+					'involvement_ratio': float(involvement_ratio),
+					'contributions': contributions,
+				}
+			)
 
 		# Compute per-type averages and write CSV
 		rows = self.compute_type_averages(simulation_results, engine)
 		os.makedirs(os.path.dirname(csv_path) or '.', exist_ok=True)
 		with open(csv_path, 'w', newline='') as f:
 			writer = csv.writer(f)
-			writer.writerow(["type", "player_numbers", "score", "individual", "shared_score", "involvement_ratio", "contributed_individual_score", "contributed_shared_score", "importance", "coherence", "freshness", "nonmonotone"])
+			writer.writerow(
+				[
+					'type',
+					'player_numbers',
+					'score',
+					'individual',
+					'shared_score',
+					'involvement_ratio',
+					'contributed_individual_score',
+					'contributed_shared_score',
+					'importance',
+					'coherence',
+					'freshness',
+					'nonmonotone',
+				]
+			)
 			for r in rows:
-				writer.writerow([
-					r['type'],
-					r['player_numbers'],
-					f"{r['score']:.{FLOAT_PRECISION}f}",
-					f"{r['individual']:.{FLOAT_PRECISION}f}",
-					f"{r['shared_score']:.{FLOAT_PRECISION}f}",
-					f"{r['involvement_ratio']:.{FLOAT_PRECISION}f}",
-					f"{r['contributed_individual_score']:.{FLOAT_PRECISION}f}",
-					f"{r['contributed_shared_score']:.{FLOAT_PRECISION}f}",
-					f"{r['importance']:.{FLOAT_PRECISION}f}",
-					f"{r['coherence']:.{FLOAT_PRECISION}f}",
-					f"{r['freshness']:.{FLOAT_PRECISION}f}",
-					f"{r['nonmonotone']:.{FLOAT_PRECISION}f}",
-				])
+				writer.writerow(
+					[
+						r['type'],
+						r['player_numbers'],
+						f'{r["score"]:.{FLOAT_PRECISION}f}',
+						f'{r["individual"]:.{FLOAT_PRECISION}f}',
+						f'{r["shared_score"]:.{FLOAT_PRECISION}f}',
+						f'{r["involvement_ratio"]:.{FLOAT_PRECISION}f}',
+						f'{r["contributed_individual_score"]:.{FLOAT_PRECISION}f}',
+						f'{r["contributed_shared_score"]:.{FLOAT_PRECISION}f}',
+						f'{r["importance"]:.{FLOAT_PRECISION}f}',
+						f'{r["coherence"]:.{FLOAT_PRECISION}f}',
+						f'{r["freshness"]:.{FLOAT_PRECISION}f}',
+						f'{r["nonmonotone"]:.{FLOAT_PRECISION}f}',
+					]
+				)
 
 		return csv_path
-	
-	def _analyze_individual_players(self, simulation_results: Dict[str, Any], engine=None, test_player: Optional[str] = None) -> str:
+
+	def _analyze_individual_players(
+		self, simulation_results: dict[str, Any], engine=None, test_player: str | None = None
+	) -> str:
 		"""Create detailed table of individual player performance."""
 		output = []
-		output.append("INDIVIDUAL PLAYER ANALYSIS")
-		output.append("-" * 40)
-		
-		conversation_length = simulation_results['scores'].get('conversation_length', len(simulation_results.get('history', [])))
+		output.append('INDIVIDUAL PLAYER ANALYSIS')
+		output.append('-' * 40)
+
+		conversation_length = simulation_results['scores'].get(
+			'conversation_length', len(simulation_results.get('history', []))
+		)
 		total_participants = len(simulation_results['scores']['player_scores'])
-		
+
 		# Prepare player data
 		player_data = []
 		per_player, _, _, _ = self._aggregate_speaking_contributions(simulation_results, engine)
@@ -362,68 +426,80 @@ class ConversationAnalyzer:
 			if engine:
 				player_type = type(engine.players[i]).__name__
 				type_counters[player_type] += 1
-				player_name = f"{player_type}_{type_counters[player_type]}"
-				
+				player_name = f'{player_type}_{type_counters[player_type]}'
+
 				# Calculate involvement rate
 				contributions = len(engine.player_contributions.get(engine.players[i].id, []))
 			else:
-				player_name = f"Player_{i+1}"
+				player_name = f'Player_{i + 1}'
 				contributions = 0
-			
+
 			# Mark test player
 			if test_player and player_name.startswith(test_player):
-				player_name += " (test)"
-			
-			involvement_rate = self._calculate_involvement_rate(contributions, conversation_length, total_participants)
-			
+				player_name += ' (test)'
+
+			involvement_rate = self._calculate_involvement_rate(
+				contributions, conversation_length, total_participants
+			)
+
 			# Contributed/shared score only from speaking rounds
 			pid = engine.players[i].id if engine else None
 			contrib_shared = (per_player.get(pid, {}) or {}).get('shared_total', 0.0)
-			player_data.append({
-				'name': player_name,
-				'quality_score': player_result['scores']['total'],
-				'individual_score': player_result['scores']['individual'],
-				'contributed_score': contrib_shared,
-				'involvement_rate': involvement_rate,
-				'contributions': contributions
-			})
-		
+			player_data.append(
+				{
+					'name': player_name,
+					'quality_score': player_result['scores']['total'],
+					'individual_score': player_result['scores']['individual'],
+					'contributed_score': contrib_shared,
+					'involvement_rate': involvement_rate,
+					'contributions': contributions,
+				}
+			)
+
 		# Sort by quality score (descending)
 		player_data.sort(key=lambda x: x['quality_score'], reverse=True)
-		
+
 		# Format table
 		table = self._format_player_table(player_data)
 		output.extend(table)
-		
-		return "\n".join(output)
-	
-	def _analyze_player_types(self, simulation_results: Dict[str, Any], engine) -> str:
+
+		return '\n'.join(output)
+
+	def _analyze_player_types(self, simulation_results: dict[str, Any], engine) -> str:
 		"""Analyze performance by player type with rankings."""
 		output = []
-		output.append("PLAYER TYPE ANALYSIS")
-		output.append("-" * 30)
-		
-		conversation_length = simulation_results['scores'].get('conversation_length', len(simulation_results.get('history', [])))
+		output.append('PLAYER TYPE ANALYSIS')
+		output.append('-' * 30)
+
+		conversation_length = simulation_results['scores'].get(
+			'conversation_length', len(simulation_results.get('history', []))
+		)
 		total_participants = len(simulation_results['scores']['player_scores'])
-		
+
 		# Group data by player type using speaking-round contributions
-		per_player, per_type_contribs, _, _ = self._aggregate_speaking_contributions(simulation_results, engine)
+		per_player, per_type_contribs, _, _ = self._aggregate_speaking_contributions(
+			simulation_results, engine
+		)
 		type_data = defaultdict(list)
 		for i, player_result in enumerate(simulation_results['scores']['player_scores']):
 			player_type = type(engine.players[i]).__name__
 			pid = engine.players[i].id
 			contributions = len(engine.player_contributions.get(pid, []))
-			involvement_rate = self._calculate_involvement_rate(contributions, conversation_length, total_participants)
+			involvement_rate = self._calculate_involvement_rate(
+				contributions, conversation_length, total_participants
+			)
 
 			contrib_shared = (per_player.get(pid, {}) or {}).get('shared_total', 0.0)
-			type_data[player_type].append({
-				'quality_score': player_result['scores']['total'],
-				'individual_score': player_result['scores']['individual'],
-				'contributed_score': contrib_shared,
-				'involvement_rate': involvement_rate,
-				'contributions': contributions
-			})
-		
+			type_data[player_type].append(
+				{
+					'quality_score': player_result['scores']['total'],
+					'individual_score': player_result['scores']['individual'],
+					'contributed_score': contrib_shared,
+					'involvement_rate': involvement_rate,
+					'contributions': contributions,
+				}
+			)
+
 		# Calculate averages for each type
 		type_averages = []
 		for player_type, players in type_data.items():
@@ -432,171 +508,198 @@ class ConversationAnalyzer:
 				'count': len(players),
 				'avg_quality_score': sum(p['quality_score'] for p in players) / len(players),
 				'avg_individual_score': sum(p['individual_score'] for p in players) / len(players),
-				'avg_contributed_score': sum(p['contributed_score'] for p in players) / len(players),
+				'avg_contributed_score': sum(p['contributed_score'] for p in players)
+				/ len(players),
 				'avg_involvement_rate': sum(p['involvement_rate'] for p in players) / len(players),
-				'total_contributions': sum(p['contributions'] for p in players)
+				'total_contributions': sum(p['contributions'] for p in players),
 			}
 			type_averages.append(avg_data)
-		
+
 		# Sort by average quality score
 		type_averages.sort(key=lambda x: x['avg_quality_score'], reverse=True)
-		
+
 		# Add rankings
 		for rank, type_avg in enumerate(type_averages, 1):
 			type_avg['rank'] = rank
-		
+
 		# Format type analysis table
 		table = self._format_type_table(type_averages)
 		output.extend(table)
-		
+
 		# Normalized attribute analysis (by speaking-round contributions per type)
-		output.append("")
-		output.append("NORMALIZED ATTRIBUTE ANALYSIS BY TYPE:")
-		output.append("-" * 45)
-		
+		output.append('')
+		output.append('NORMALIZED ATTRIBUTE ANALYSIS BY TYPE:')
+		output.append('-' * 45)
+
 		norm_factor = conversation_length if conversation_length > 0 else 1
 		attr_data = []
 		for type_avg in type_averages:
 			ctype = type_avg['type']
 			contribs = per_type_contribs.get(ctype, {}) or {}
-			attr_data.append({
-				'type': ctype,
-				'norm_importance': float(contribs.get('importance', 0.0)) / norm_factor,
-				'norm_coherence': float(contribs.get('coherence', 0.0)) / norm_factor,
-				'norm_freshness': float(contribs.get('freshness', 0.0)) / norm_factor,
-				'norm_nonmonotone': float(contribs.get('nonmonotonousness', 0.0)) / norm_factor
-			})
-		
+			attr_data.append(
+				{
+					'type': ctype,
+					'norm_importance': float(contribs.get('importance', 0.0)) / norm_factor,
+					'norm_coherence': float(contribs.get('coherence', 0.0)) / norm_factor,
+					'norm_freshness': float(contribs.get('freshness', 0.0)) / norm_factor,
+					'norm_nonmonotone': float(contribs.get('nonmonotonousness', 0.0)) / norm_factor,
+				}
+			)
+
 		attr_table = self._format_attribute_table(attr_data)
 		output.extend(attr_table)
-		
-		return "\n".join(output)
-	
-	def _analyze_global_metrics(self, simulation_results: Dict[str, Any]) -> str:
+
+		return '\n'.join(output)
+
+	def _analyze_global_metrics(self, simulation_results: dict[str, Any]) -> str:
 		"""Analyze global conversation metrics."""
 		output = []
-		output.append("GLOBAL CONVERSATION METRICS")
-		output.append("-" * 35)
-		
+		output.append('GLOBAL CONVERSATION METRICS')
+		output.append('-' * 35)
+
 		scores = simulation_results['scores']
 		shared_scores = scores['shared_score_breakdown']
-		conversation_length = scores.get('conversation_length', len(simulation_results.get('history', [])))
+		conversation_length = scores.get(
+			'conversation_length', len(simulation_results.get('history', []))
+		)
 		pauses = scores.get('pauses', 0)
-		
+
 		# Overall metrics
-		output.append(f"Conversation Length: {conversation_length}")
-		output.append(f"Total Pauses: {pauses}")
-		output.append(f"Active Turns: {conversation_length - pauses}")
-		output.append("")
-		
+		output.append(f'Conversation Length: {conversation_length}')
+		output.append(f'Total Pauses: {pauses}')
+		output.append(f'Active Turns: {conversation_length - pauses}')
+		output.append('')
+
 		# Overall scores
-		output.append("OVERALL SCORES:")
-		output.append(f"  Total Shared Score: {shared_scores['total']:.{FLOAT_PRECISION}f}")
-		output.append("")
-		
+		output.append('OVERALL SCORES:')
+		output.append(f'  Total Shared Score: {shared_scores["total"]:.{FLOAT_PRECISION}f}')
+		output.append('')
+
 		# Normalized scores
 		norm_factor = conversation_length if conversation_length > 0 else 1
-		output.append("NORMALIZED SCORES (per turn):")
-		output.append(f"  Normalized Total: {shared_scores['total'] / norm_factor:.{FLOAT_PRECISION}f}")
-		output.append(f"  Normalized Importance: {shared_scores['importance'] / norm_factor:.{FLOAT_PRECISION}f}")
-		output.append(f"  Normalized Coherence: {shared_scores['coherence'] / norm_factor:.{FLOAT_PRECISION}f}")
-		output.append(f"  Normalized Freshness: {shared_scores['freshness'] / norm_factor:.{FLOAT_PRECISION}f}")
-		output.append(f"  Normalized Nonmonotonousness: {shared_scores['nonmonotonousness'] / norm_factor:.{FLOAT_PRECISION}f}")
-		output.append("")
-		
+		output.append('NORMALIZED SCORES (per turn):')
+		output.append(
+			f'  Normalized Total: {shared_scores["total"] / norm_factor:.{FLOAT_PRECISION}f}'
+		)
+		output.append(
+			f'  Normalized Importance: {shared_scores["importance"] / norm_factor:.{FLOAT_PRECISION}f}'
+		)
+		output.append(
+			f'  Normalized Coherence: {shared_scores["coherence"] / norm_factor:.{FLOAT_PRECISION}f}'
+		)
+		output.append(
+			f'  Normalized Freshness: {shared_scores["freshness"] / norm_factor:.{FLOAT_PRECISION}f}'
+		)
+		output.append(
+			f'  Normalized Nonmonotonousness: {shared_scores["nonmonotonousness"] / norm_factor:.{FLOAT_PRECISION}f}'
+		)
+		output.append('')
+
 		# Player performance summary
 		player_scores = [p['scores']['total'] for p in scores['player_scores']]
-		output.append("PLAYER PERFORMANCE SUMMARY:")
-		output.append(f"  Average Quality Score: {sum(player_scores) / len(player_scores):.{FLOAT_PRECISION}f}")
-		output.append(f"  Best Quality Score: {max(player_scores):.{FLOAT_PRECISION}f}")
-		output.append(f"  Worst Quality Score: {min(player_scores):.{FLOAT_PRECISION}f}")
-		output.append(f"  Quality Score Std Dev: {self._calculate_std_dev(player_scores):.{FLOAT_PRECISION}f}")
-		
-		return "\n".join(output)
-	
-	def _calculate_involvement_rate(self, contributions: int, conversation_length: int, total_participants: int) -> float:
+		output.append('PLAYER PERFORMANCE SUMMARY:')
+		output.append(
+			f'  Average Quality Score: {sum(player_scores) / len(player_scores):.{FLOAT_PRECISION}f}'
+		)
+		output.append(f'  Best Quality Score: {max(player_scores):.{FLOAT_PRECISION}f}')
+		output.append(f'  Worst Quality Score: {min(player_scores):.{FLOAT_PRECISION}f}')
+		output.append(
+			f'  Quality Score Std Dev: {self._calculate_std_dev(player_scores):.{FLOAT_PRECISION}f}'
+		)
+
+		return '\n'.join(output)
+
+	def _calculate_involvement_rate(
+		self, contributions: int, conversation_length: int, total_participants: int
+	) -> float:
 		"""Calculate involvement rate as participation / (conversation_length / total_participants)."""
 		if conversation_length == 0 or total_participants == 0:
 			return 0.0
 		expected_participation = conversation_length / total_participants
 		return contributions / expected_participation if expected_participation > 0 else 0.0
-	
-	def _format_player_table(self, player_data: List[Dict]) -> List[str]:
+
+	def _format_player_table(self, player_data: list[dict]) -> list[str]:
 		"""Format individual player analysis table."""
 		output = []
-		
+
 		# Header (center alignment)
-		header_line = f"{'Player':^25} {'Quality':^12} {'Individual':^12} {'Contributed':^12} {'Involvement':^12} {'Num':^8}"
+		header_line = f'{"Player":^25} {"Quality":^12} {"Individual":^12} {"Contributed":^12} {"Involvement":^12} {"Num":^8}'
 		output.append(header_line)
-		output.append("-" * len(header_line))
-		
+		output.append('-' * len(header_line))
+
 		# Data rows
 		for player in player_data:
-			line = (f"{player['name']:^25} "
-					f"{player['quality_score']:^12.{FLOAT_PRECISION}f} "
-					f"{player['individual_score']:^12.{FLOAT_PRECISION}f} "
-					f"{player['contributed_score']:^12.{FLOAT_PRECISION}f} "
-					f"{player['involvement_rate']:^12.{FLOAT_PRECISION}f} "
-					f"{player['contributions']:^8}")
+			line = (
+				f'{player["name"]:^25} '
+				f'{player["quality_score"]:^12.{FLOAT_PRECISION}f} '
+				f'{player["individual_score"]:^12.{FLOAT_PRECISION}f} '
+				f'{player["contributed_score"]:^12.{FLOAT_PRECISION}f} '
+				f'{player["involvement_rate"]:^12.{FLOAT_PRECISION}f} '
+				f'{player["contributions"]:^8}'
+			)
 			output.append(line)
-		
+
 		return output
-	
-	def _format_type_table(self, type_data: List[Dict]) -> List[str]:
+
+	def _format_type_table(self, type_data: list[dict]) -> list[str]:
 		"""Format player type analysis table."""
 		output = []
-		
+
 		# Header (center alignment)
-		header_line = f"{'Rank':^6} {'Type':^20} {'Count':^7} {'Avg Qual':^10} {'Avg Indiv':^10} {'Avg Cont':^10} {'Avg Invol':^10} {'Total':^7}"
+		header_line = f'{"Rank":^6} {"Type":^20} {"Count":^7} {"Avg Qual":^10} {"Avg Indiv":^10} {"Avg Cont":^10} {"Avg Invol":^10} {"Total":^7}'
 		output.append(header_line)
-		output.append("-" * len(header_line))
-		
+		output.append('-' * len(header_line))
+
 		# Data rows
 		for type_avg in type_data:
-			line = (f"{type_avg['rank']:^6} "
-					f"{type_avg['type']:^20} "
-					f"{type_avg['count']:^7} "
-					f"{type_avg['avg_quality_score']:^10.{FLOAT_PRECISION}f} "
-					f"{type_avg['avg_individual_score']:^10.{FLOAT_PRECISION}f} "
-					f"{type_avg['avg_contributed_score']:^10.{FLOAT_PRECISION}f} "
-					f"{type_avg['avg_involvement_rate']:^10.{FLOAT_PRECISION}f} "
-					f"{type_avg['total_contributions']:^7}")
+			line = (
+				f'{type_avg["rank"]:^6} '
+				f'{type_avg["type"]:^20} '
+				f'{type_avg["count"]:^7} '
+				f'{type_avg["avg_quality_score"]:^10.{FLOAT_PRECISION}f} '
+				f'{type_avg["avg_individual_score"]:^10.{FLOAT_PRECISION}f} '
+				f'{type_avg["avg_contributed_score"]:^10.{FLOAT_PRECISION}f} '
+				f'{type_avg["avg_involvement_rate"]:^10.{FLOAT_PRECISION}f} '
+				f'{type_avg["total_contributions"]:^7}'
+			)
 			output.append(line)
-		
+
 		return output
-	
-	def _format_attribute_table(self, attr_data: List[Dict]) -> List[str]:
+
+	def _format_attribute_table(self, attr_data: list[dict]) -> list[str]:
 		"""Format normalized attribute analysis table."""
 		output = []
-		
+
 		# Header (center alignment)
-		header_line = f"{'Type':^20} {'Importance':^12} {'Coherence':^12} {'Freshness':^12} {'Nonmonotone':^12}"
+		header_line = f'{"Type":^20} {"Importance":^12} {"Coherence":^12} {"Freshness":^12} {"Nonmonotone":^12}'
 		output.append(header_line)
-		output.append("-" * len(header_line))
-		
+		output.append('-' * len(header_line))
+
 		# Data rows
 		for attr in attr_data:
-			line = (f"{attr['type']:^20} "
-					f"{attr['norm_importance']:^12.{FLOAT_PRECISION}f} "
-					f"{attr['norm_coherence']:^12.{FLOAT_PRECISION}f} "
-					f"{attr['norm_freshness']:^12.{FLOAT_PRECISION}f} "
-					f"{attr['norm_nonmonotone']:^12.{FLOAT_PRECISION}f}")
+			line = (
+				f'{attr["type"]:^20} '
+				f'{attr["norm_importance"]:^12.{FLOAT_PRECISION}f} '
+				f'{attr["norm_coherence"]:^12.{FLOAT_PRECISION}f} '
+				f'{attr["norm_freshness"]:^12.{FLOAT_PRECISION}f} '
+				f'{attr["norm_nonmonotone"]:^12.{FLOAT_PRECISION}f}'
+			)
 			output.append(line)
-		
+
 		return output
-	
-	def _calculate_std_dev(self, values: List[float]) -> float:
+
+	def _calculate_std_dev(self, values: list[float]) -> float:
 		"""Calculate standard deviation of a list of values."""
 		if len(values) < 2:
 			return 0.0
 		mean = sum(values) / len(values)
 		variance = sum((x - mean) ** 2 for x in values) / (len(values) - 1)
-		return variance ** 0.5
+		return variance**0.5
 
 
 class ConversationScorer:
 	"""Handles all score calculations for conversation items."""
-	
+
 	def __init__(self, player_preferences: list[int]):
 		self.player_preferences = player_preferences
 
@@ -609,7 +712,9 @@ class ConversationScorer:
 		if position == 0 or history[position - 1] is not None:
 			return 0.0
 
-		prior_items = (item for item in history[max(0, position - 6) : position - 1] if item is not None)
+		prior_items = (
+			item for item in history[max(0, position - 6) : position - 1] if item is not None
+		)
 		prior_subjects = {s for item in prior_items for s in item.subjects}
 
 		novel_subjects = [s for s in item.subjects if s not in prior_subjects]
@@ -637,7 +742,9 @@ class ConversationScorer:
 
 		return score
 
-	def calculate_nonmonotonousness_score(self, item: Item, position: int, history: list[Item], repeated: bool) -> float:
+	def calculate_nonmonotonousness_score(
+		self, item: Item, position: int, history: list[Item], repeated: bool
+	) -> float:
 		"""Calculate nonmonotonousness score (based on Engine's logic)."""
 		if repeated:
 			return -1.0
@@ -647,8 +754,7 @@ class ConversationScorer:
 
 		last_three_items = [history[j] for j in range(position - 3, position)]
 		if all(
-			item and any(s in item.subjects for s in item.subjects)
-			for item in last_three_items
+			item and any(s in item.subjects for s in item.subjects) for item in last_three_items
 		):
 			return -1.0
 
@@ -680,8 +786,10 @@ class ConversationScorer:
 			coherence = self.calculate_coherence_score(item, position, history)
 			freshness = self.calculate_freshness_score(item, position, history)
 
-		nonmonotonousness = self.calculate_nonmonotonousness_score(item, position, history, is_repeated)
-		
+		nonmonotonousness = self.calculate_nonmonotonousness_score(
+			item, position, history, is_repeated
+		)
+
 		# Individual score
 		individual = self.calculate_individual_score(item)
 
@@ -692,12 +800,10 @@ class ConversationScorer:
 	def calculate_total_score(self, item: Item, history: list[Item]) -> float:
 		"""Calculate total score impact for adding this item (replicating Engine logic)."""
 
-		
 		# Individual score
 		individual = self.calculate_individual_score(item)
 
 		# Total shared score
 		shared_total = self.calculate_shared_score(item, history)
-  
-		return shared_total + individual
 
+		return shared_total + individual

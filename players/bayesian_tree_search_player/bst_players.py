@@ -1,4 +1,4 @@
-from models.player import PlayerSnapshot, GameContext
+from models.player import GameContext, PlayerSnapshot
 from players.bayesian_tree_search_player.bst_player_presets import BayesianTreeBeamSearchPlayer
 
 # Global threshold for all presets
@@ -7,42 +7,63 @@ GLOBAL_COMPETITION_RATE = 0.5
 
 
 class BayesTreeBeamLow(BayesianTreeBeamSearchPlayer):
-	def __init__(self, snapshot: PlayerSnapshot, ctx: GameContext, initial_competition_rate: float = GLOBAL_COMPETITION_RATE) -> None:
+	def __init__(
+		self,
+		snapshot: PlayerSnapshot,
+		ctx: GameContext,
+		initial_competition_rate: float = GLOBAL_COMPETITION_RATE,
+	) -> None:
 		super().__init__(
 			snapshot=snapshot,
 			ctx=ctx,
 			initial_competition_rate=initial_competition_rate,
 			depth=2,
 			breadth=4,
-   			static_threhold=GLOBAL_BST_THRESHOLD
+			static_threhold=GLOBAL_BST_THRESHOLD,
 		)
-  
+
 
 class BayesTreeBeamMedium(BayesianTreeBeamSearchPlayer):
-	def __init__(self, snapshot: PlayerSnapshot, ctx: GameContext, initial_competition_rate: float = GLOBAL_COMPETITION_RATE) -> None:
+	def __init__(
+		self,
+		snapshot: PlayerSnapshot,
+		ctx: GameContext,
+		initial_competition_rate: float = GLOBAL_COMPETITION_RATE,
+	) -> None:
 		super().__init__(
 			snapshot=snapshot,
 			ctx=ctx,
 			initial_competition_rate=initial_competition_rate,
 			depth=3,
 			breadth=16,
-			static_threhold=GLOBAL_BST_THRESHOLD
+			static_threhold=GLOBAL_BST_THRESHOLD,
 		)
-  
+
+
 class BayesTreeBeamHigh(BayesianTreeBeamSearchPlayer):
-	def __init__(self, snapshot: PlayerSnapshot, ctx: GameContext, initial_competition_rate: float = GLOBAL_COMPETITION_RATE) -> None:
+	def __init__(
+		self,
+		snapshot: PlayerSnapshot,
+		ctx: GameContext,
+		initial_competition_rate: float = GLOBAL_COMPETITION_RATE,
+	) -> None:
 		super().__init__(
 			snapshot=snapshot,
 			ctx=ctx,
 			initial_competition_rate=initial_competition_rate,
 			depth=6,
 			breadth=128,
-			static_threhold=GLOBAL_BST_THRESHOLD
+			static_threhold=GLOBAL_BST_THRESHOLD,
 		)
-  
+
 
 class BayesTreeDynamicStandard(BayesianTreeBeamSearchPlayer):
-	def __init__(self, snapshot: PlayerSnapshot, ctx: GameContext, initial_competition_rate: float = GLOBAL_COMPETITION_RATE) -> None:
+	def __init__(
+		self,
+		snapshot: PlayerSnapshot,
+		ctx: GameContext,
+		initial_competition_rate: float = GLOBAL_COMPETITION_RATE,
+	) -> None:
 		# breadth = 4 * |B|
 		super().__init__(
 			snapshot=snapshot,
@@ -51,10 +72,15 @@ class BayesTreeDynamicStandard(BayesianTreeBeamSearchPlayer):
 			depth=3,
 			breadth_rate=0.5,
 		)
-  
-  
+
+
 class BayesTreeDynamicWidth(BayesianTreeBeamSearchPlayer):
-	def __init__(self, snapshot: PlayerSnapshot, ctx: GameContext, initial_competition_rate: float = GLOBAL_COMPETITION_RATE) -> None:
+	def __init__(
+		self,
+		snapshot: PlayerSnapshot,
+		ctx: GameContext,
+		initial_competition_rate: float = GLOBAL_COMPETITION_RATE,
+	) -> None:
 		# breadth = 4 * |B|
 		super().__init__(
 			snapshot=snapshot,
@@ -66,7 +92,12 @@ class BayesTreeDynamicWidth(BayesianTreeBeamSearchPlayer):
 
 
 class BayesTreeDynamicDepth(BayesianTreeBeamSearchPlayer):
-	def __init__(self, snapshot: PlayerSnapshot, ctx: GameContext, initial_competition_rate: float = GLOBAL_COMPETITION_RATE) -> None:
+	def __init__(
+		self,
+		snapshot: PlayerSnapshot,
+		ctx: GameContext,
+		initial_competition_rate: float = GLOBAL_COMPETITION_RATE,
+	) -> None:
 		# breadth = 4 * |B|
 		super().__init__(
 			snapshot=snapshot,
@@ -78,7 +109,12 @@ class BayesTreeDynamicDepth(BayesianTreeBeamSearchPlayer):
 
 
 class BayesTreeDynamicHigh(BayesianTreeBeamSearchPlayer):
-	def __init__(self, snapshot: PlayerSnapshot, ctx: GameContext, initial_competition_rate: float = GLOBAL_COMPETITION_RATE) -> None:
+	def __init__(
+		self,
+		snapshot: PlayerSnapshot,
+		ctx: GameContext,
+		initial_competition_rate: float = GLOBAL_COMPETITION_RATE,
+	) -> None:
 		# breadth = 4 * |B|
 		super().__init__(
 			snapshot=snapshot,
@@ -88,6 +124,7 @@ class BayesTreeDynamicHigh(BayesianTreeBeamSearchPlayer):
 			breadth_rate=8,
 		)
 
+
 # hyperparameter tuning:
 # P, B, L, S, T, history --> competition rate +  speack_pubishnishment
 
@@ -96,5 +133,5 @@ class BayesTreeDynamicHigh(BayesianTreeBeamSearchPlayer):
 
 # test environment implementation:
 # design the algorithm to generate test case: sample the global setting hyperparameters
-# implement the benchmarking 
-# test the test player with  -> cauculate the 
+# implement the benchmarking
+# test the test player with  -> cauculate the

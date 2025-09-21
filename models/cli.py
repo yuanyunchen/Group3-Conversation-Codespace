@@ -22,7 +22,6 @@ from dataclasses import dataclass
 # }
 
 
-
 @dataclass
 class Settings:
 	players: dict[str, int]
@@ -61,16 +60,31 @@ def settings() -> Settings:
 		'--seed', type=int, default=91, help='Seed for the random number generator.'
 	)
 	parser.add_argument('--gui', action='store_true', help='Enable GUI')
-	parser.add_argument('--output_path', type=str, default='results', help='Output directory for json/txt/csv files')
-	parser.add_argument('--test_player', type=str, default=None, help='Player type prefix to mark as test in analysis (e.g., p3)')
-	parser.add_argument('--rounds', type=int, default=1, help='Number of rounds (vary seeds) to repeat with same settings')
-	parser.add_argument('--detailed', action='store_true', help='If set, write per-round JSON/TXT/CSV; otherwise only final average CSV')
-
+	parser.add_argument(
+		'--output_path', type=str, default='results', help='Output directory for json/txt/csv files'
+	)
+	parser.add_argument(
+		'--test_player',
+		type=str,
+		default=None,
+		help='Player type prefix to mark as test in analysis (e.g., p3)',
+	)
+	parser.add_argument(
+		'--rounds',
+		type=int,
+		default=1,
+		help='Number of rounds (vary seeds) to repeat with same settings',
+	)
+	parser.add_argument(
+		'--detailed',
+		action='store_true',
+		help='If set, write per-round JSON/TXT/CSV; otherwise only final average CSV',
+	)
 
 	args = parser.parse_args()
 
-	### delete the naming check... tedious design, 
-	
+	### delete the naming check... tedious design,
+
 	# player_counts = DEFAULT_PLAYERS.copy()
 	# if args.player:
 	# 	for player_type, count_str in args.player:
@@ -78,14 +92,13 @@ def settings() -> Settings:
 	# 			player_counts[player_type] = int(count_str)
 	# 		else:
 	# 			print(f"Warning: Unknown player type '{player_type}' ignored.")
-	
+
 	###
- 
+
 	player_counts = {}
 	if args.player:
 		for player_type, count_str in args.player:
 			player_counts[player_type] = int(count_str)
-      
 
 	args_dict = vars(args)
 	del args_dict['player']

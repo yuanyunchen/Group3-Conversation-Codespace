@@ -1,4 +1,4 @@
-from models.player import PlayerSnapshot, GameContext
+from models.player import GameContext, PlayerSnapshot
 from players.bayesian_tree_search_player.bst_player_presets import BayesianTreeBeamSearchPlayer
 
 # Global threshold for all presets
@@ -14,9 +14,8 @@ class BalancedGreedyPlayer(BayesianTreeBeamSearchPlayer):
 			initial_competition_rate=0.5,
 			depth=1,
 			breadth=None,
-			static_threhold=GLOBAL_BST_THRESHOLD
+			static_threhold=GLOBAL_BST_THRESHOLD,
 		)
-  
 
 
 class SelflessGreedyPlayer(BayesianTreeBeamSearchPlayer):
