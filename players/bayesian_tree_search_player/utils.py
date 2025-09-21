@@ -199,13 +199,25 @@ class ConversationScorer:
 		)
 		return weighted_score
 
-	def calculate_expected_score(
-		self,
-		history: list[Item],
-		mode: str = 'discount_average',
-		context_length: int = None,
-		discount_rate: float = None,
-	) -> float:
+	def evaluate_at_position(self, history: list[Item], position: int) -> float:
+		"""
+		Evaluate the item already present at `position` using only the context
+		available at that turn (i.e., past-only), without treating it as newly added.
+		"""
+		if position < 0 or position >= len(history):
+			return 0.0
+		item = history[position]
+		if item is None:
+			return 0.0
+		individual_score = self.calculate_individual_score(item)
+		shared_score = self.calculate_shared_score_at_position(history, position)
+		return (
+			self.competition_rate * individual_score
+			+ (1 - self.competition_rate) * shared_score
+		)
+
+
+	def calculate_expected_score(self, history: list[Item], mode: str = "discount_average", context_length: int = None, discount_rate: float =None) -> float:
 		"""
 		Compute an expected score from recent history using this scorer.
 
@@ -231,15 +243,13 @@ class ConversationScorer:
 		start_index = max(0, len(history) - context_length)
 		recent_indices = list(range(start_index, len(history)))
 
-		# Build scores for non-None turns using the state as it was before that turn
+		# Build scores for non-None turns evaluating each item at its fixed position
 		scored: list[tuple[int, float]] = []  # (rank_from_end, score)
 		for j in recent_indices:
 			item = history[j]
 			if item is None:
 				continue
-			# history before item was proposed at turn j
-			prior_history = history[:j]
-			score = self.evaluate(item, prior_history)
+			score = self.evaluate_at_position(history, j)
 			rank_from_end = (len(history) - 1) - j  # 0 for most recent
 			scored.append((rank_from_end, score))
 
@@ -257,52 +267,6 @@ class ConversationScorer:
 
 		return sum_ws / sum_w if sum_w > 0 else 0.0
 
-	def calculate_expected_shared_score(
-		self,
-		history: list[Item],
-		mode: str = 'discount_average',
-		context_length: int = None,
-		discount_rate: float = None,
-	) -> float:
-		"""Expected shared score over recent turns using position-based shared scoring.
 
-		- mode == "average": unweighted average
-		- mode == "discount_average": exponentially discounted average
-		"""
-		# default: all turns
-		if not context_length:
-			context_length = len(history)
 
-		# default: use unweighted average.
-		if not discount_rate:
-			discount_rate = 0
-		if mode == 'average':
-			discount_rate = 0
 
-		if not history:
-			return 0.0
-
-		start_index = max(0, len(history) - context_length)
-		recent_indices = list(range(start_index, len(history)))
-
-		scored: list[tuple[int, float]] = []
-		for j in recent_indices:
-			if history[j] is None:
-				continue
-			# Use position-based shared scoring that only considers past at that position
-			shared = self.calculate_shared_score_at_position(history, j)
-			rank_from_end = (len(history) - 1) - j
-			scored.append((rank_from_end, shared))
-
-		if not scored:
-			return 0.0
-
-		sum_w = 0.0
-		sum_ws = 0.0
-		base = max(0.0, min(1.0, 1.0 - discount_rate))
-		for rank, s in scored:
-			w = base**rank
-			sum_w += w
-			sum_ws += w * s
-
-		return sum_ws / sum_w if sum_w > 0 else 0.0
