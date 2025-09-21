@@ -17,7 +17,7 @@ S=20
 # derived round/output settings
 root="results"
 
-round_name="comparison_bst_threhold_0.5__0916_${test_player}"
+round_name="comparison_threhold_0.5__0916_${test_player}"
 
 output_root="$root/${round_name}_L${L}B${B}S${S}"
 
@@ -48,7 +48,7 @@ rounds_flag="--rounds $rounds"
 
 
 # # # collaboration
-python main.py --player $test_player 10 --length $L --memory_size $B --subjects $S --output_path "$output_root/self_collaboration" --test_player $test_player $gui_flag $rounds_flag $detailed_flag
+# python main.py --player $test_player 10 --length $L --memory_size $B --subjects $S --output_path "$output_root/self_collaboration" --test_player $test_player $gui_flag $rounds_flag $detailed_flag
 
 
 # # # against random player
