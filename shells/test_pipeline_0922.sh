@@ -5,7 +5,7 @@
 # test_player="p_bst_medium"
 # test_player="p_balanced_greedy"
 
-test_player="p3"
+test_player="p_bst_medium"
 
 # global setting: (default L 10, B 10, S 20)
 L=50
@@ -13,17 +13,16 @@ B=10
 S=20
 
 
-
 # derived round/output settings
 root="results"
 
-round_name="test_before_commit__0922_${test_player}"
+round_name="monday_class_baseline_0922_${test_player}"
 
 output_root="$root/${round_name}_L${L}B${B}S${S}"
 
 # test mode control
 gui_on="false"  
-rounds=5 # random rounds with same setting. 
+rounds=10 # random rounds with same setting. 
 detailed_on="false" # detailed
 
 # Set GUI flag based on gui_on variable

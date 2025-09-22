@@ -190,6 +190,27 @@ class BayesianTreeBeamSearch:
 
 
 class BayesianTreeBeamSearchPlayer(Player):
+	# ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾
+	# complete this 😈
+
+	@staticmethod
+	def set_hyperparameter(P, L, B, S):
+		static_baseline = 0.45
+		discount_rate = 0.12
+		blend_factor = 0.6
+		threshold_upper_bound = 0.6
+		competition_rate = 0.5
+
+		return {
+			"static_baseline": static_baseline,
+			"discount_rate": discount_rate,
+			"blend_factor": blend_factor,
+			"threshold_upper_bound": threshold_upper_bound,
+			"competition_rate": competition_rate,
+		}
+
+	# ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴
+
 	def __init__(
 		self,
 		snapshot: PlayerSnapshot,
@@ -197,15 +218,14 @@ class BayesianTreeBeamSearchPlayer(Player):
 		depth=1,
 		breadth=None,
 		breadth_rate=None,
-		initial_competition_rate: float = 0.5,
-		initial_speak_panelty: float = DEFAULT_SPEAK_PANELTY,  ##
+		# initial_competition_rate: float = 0.5,
+		# initial_speak_panelty: float = DEFAULT_SPEAK_PANELTY,  ##
 		static_threhold=None,
 	) -> None:
 		super().__init__(snapshot, ctx)
-		self.scorer = ConversationScorer(self.preferences, initial_competition_rate)
 		self.depth = depth
-		self.initial_competition_rate = initial_competition_rate
-		self.initial_speak_panelty = initial_speak_panelty
+		# self.initial_competition_rate = initial_competition_rate
+		# self.initial_speak_panelty = initial_speak_panelty
 		self.static_threhold = static_threhold
 
 		if breadth is not None:
@@ -215,27 +235,41 @@ class BayesianTreeBeamSearchPlayer(Player):
 		else:
 			self.breadth = len(self.memory_bank)
 
-	# ---------------------------------------------------------------------------------------------------------------------------------------------------
+		# hyperparameter setting:
+		P = ctx.number_of_players
+		L = ctx.conversation_length
+		B = len(self.memory_bank)
+		S = len(self.preferences)
 
-	# question to think about:
-	# use which information to adjust & how: L(conversation_length) ~ T | B ~ S ~ available items | history
-	def set_competition_rate(self, history):
-		return self.initial_competition_rate  # currently use the
+		hyperparameter = self.set_hyperparameter(P, L, B, S)
+		self.static_baseline = hyperparameter["static_baseline"]
+		self.discount_rate = hyperparameter["discount_rate"]
+		self.blend_factor = hyperparameter["blend_factor"]
+		self.threshold_upper_bound = hyperparameter["threshold_upper_bound"]
+		self.competition_rate = hyperparameter["competition_rate"]
 
-	def set_speak_panelty(self, history):
-		return self.initial_speak_panelty
+		self.scorer = ConversationScorer(self.preferences, self.competition_rate)
 
-	# ---------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+	# # question to think about:
+	# # use which information to adjust & how: L(conversation_length) ~ T | B ~ S ~ available items | history
+	# def set_competition_rate(self, history):
+	# 	return self.initial_competition_rate  # currently use the
+
+	# def set_speak_panelty(self, history):
+	# 	return self.initial_speak_panelty
+
 	# discount_rate 0.12 | static_baseline 0.45 | blend_factor .60 have worked the best when paired against itself (emanuel)
 	# 0.10, 0.53, 0.10 seem to work better when paired with greedy bots
 	def dynamic_threshold(
 		self,
 		history: list,
-		discount_rate: float = 0.12,
-		static_baseline: float = 0.45,
-		blend_factor: float = 0.6,
-		##
-		threshold_upper_bound: float = 0.6
+		# discount_rate: float = 0.12,
+		# static_baseline: float = 0.45,
+		# blend_factor: float = 0.6,
+		# ##
+		# threshold_upper_bound: float = 0.6
 	) -> float:
 		"""
 		Compute a dynamic threshold for proposing items.
@@ -249,7 +283,7 @@ class BayesianTreeBeamSearchPlayer(Player):
 		# skips through paused items
 		### upper bound of cauculation. 
 
-		MAX_CONTEXT_LENGTH = int(10 / discount_rate) if discount_rate else 100
+		MAX_CONTEXT_LENGTH = int(10 / self.discount_rate) if self.discount_rate else 100
 		t = len(history)
 		# for i, item in enumerate(history):
 		for i in range(max(0, t - MAX_CONTEXT_LENGTH), t):
@@ -261,26 +295,25 @@ class BayesianTreeBeamSearchPlayer(Player):
 			# score = self.scorer.evaluate(item, context)
 			score = self.scorer.evaluate_at_position(history, i)
 			# get a moving average of the scores
-			ema = score if ema is None else discount_rate * score + (1 - discount_rate) * ema
+			ema = score if ema is None else self.discount_rate * score + (1 - self.discount_rate) * ema
 
 		# if history was all None / pause, fallback to static baseline
 		if ema is None:
-			ema = static_baseline
+			ema = self.static_baseline
 
 		# blend average with static baseline
-		threshold = blend_factor * ema + (1 - blend_factor) * static_baseline
+		threshold = self.blend_factor * ema + (1 - self.blend_factor) * self.static_baseline
 		# threshold = max(threshold, ema + self.initial_speak_panelty) ## worse
 		### add upper bound
-		threshold = min(threshold, threshold_upper_bound)
+		threshold = min(threshold, self.threshold_upper_bound)
 
 		return threshold
 
-	# ---------------------------------------------------------------------------------------------------------------------------------------------------
 
 	def propose_item(self, history: list[Item]) -> Item | None:
-		# 1, set the hyperparameters
-		competition_rate = self.set_competition_rate(history)  # with suitable parameters.
-		self.scorer.set_competition_rate(competition_rate)
+		# # 1, set the hyperparameters
+		# competition_rate = self.set_competition_rate(history)  # with suitable parameters.
+		# self.scorer.set_competition_rate(competition_rate)
 
 		# 2, Search best item with highest scores.
 		searcher = BayesianTreeBeamSearch(

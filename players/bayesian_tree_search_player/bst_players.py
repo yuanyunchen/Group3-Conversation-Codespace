@@ -1,25 +1,18 @@
 from models.player import GameContext, PlayerSnapshot
 from players.bayesian_tree_search_player.bst_player_presets import BayesianTreeBeamSearchPlayer
 
-# Global threhold for all presets
-GLOBAL_BST_THREHOLD = 0.5
-GLOBAL_COMPETITION_RATE = 0.5
-
 
 class BayesTreeBeamLow(BayesianTreeBeamSearchPlayer):
 	def __init__(
 		self,
 		snapshot: PlayerSnapshot,
 		ctx: GameContext,
-		initial_competition_rate: float = GLOBAL_COMPETITION_RATE,
 	) -> None:
 		super().__init__(
 			snapshot=snapshot,
 			ctx=ctx,
-			initial_competition_rate=initial_competition_rate,
 			depth=2,
 			breadth=4,
-			static_threhold=GLOBAL_BST_THREHOLD,
 		)
 
 
@@ -28,15 +21,12 @@ class BayesTreeBeamMedium(BayesianTreeBeamSearchPlayer):
 		self,
 		snapshot: PlayerSnapshot,
 		ctx: GameContext,
-		initial_competition_rate: float = GLOBAL_COMPETITION_RATE,
 	) -> None:
 		super().__init__(
 			snapshot=snapshot,
 			ctx=ctx,
-			initial_competition_rate=initial_competition_rate,
 			depth=3,
 			breadth=16,
-			# static_threhold=GLOBAL_BST_THREHOLD,
 		)
 
 
@@ -45,15 +35,12 @@ class BayesTreeBeamHigh(BayesianTreeBeamSearchPlayer):
 		self,
 		snapshot: PlayerSnapshot,
 		ctx: GameContext,
-		initial_competition_rate: float = GLOBAL_COMPETITION_RATE,
 	) -> None:
 		super().__init__(
 			snapshot=snapshot,
 			ctx=ctx,
-			initial_competition_rate=initial_competition_rate,
 			depth=6,
 			breadth=128,
-			static_threhold=GLOBAL_BST_THREHOLD,
 		)
 
 
@@ -62,13 +49,11 @@ class BayesTreeDynamicStandard(BayesianTreeBeamSearchPlayer):
 		self,
 		snapshot: PlayerSnapshot,
 		ctx: GameContext,
-		initial_competition_rate: float = GLOBAL_COMPETITION_RATE,
 	) -> None:
 		# breadth = 4 * |B|
 		super().__init__(
 			snapshot=snapshot,
 			ctx=ctx,
-			initial_competition_rate=initial_competition_rate,
 			depth=3,
 			breadth_rate=0.5,
 		)
@@ -79,13 +64,11 @@ class BayesTreeDynamicWidth(BayesianTreeBeamSearchPlayer):
 		self,
 		snapshot: PlayerSnapshot,
 		ctx: GameContext,
-		initial_competition_rate: float = GLOBAL_COMPETITION_RATE,
 	) -> None:
 		# breadth = 4 * |B|
 		super().__init__(
 			snapshot=snapshot,
 			ctx=ctx,
-			initial_competition_rate=initial_competition_rate,
 			depth=3,
 			breadth_rate=4,
 		)
@@ -96,13 +79,11 @@ class BayesTreeDynamicDepth(BayesianTreeBeamSearchPlayer):
 		self,
 		snapshot: PlayerSnapshot,
 		ctx: GameContext,
-		initial_competition_rate: float = GLOBAL_COMPETITION_RATE,
 	) -> None:
 		# breadth = 4 * |B|
 		super().__init__(
 			snapshot=snapshot,
 			ctx=ctx,
-			initial_competition_rate=initial_competition_rate,
 			depth=6,
 			breadth_rate=0.5,
 		)
@@ -113,13 +94,11 @@ class BayesTreeDynamicHigh(BayesianTreeBeamSearchPlayer):
 		self,
 		snapshot: PlayerSnapshot,
 		ctx: GameContext,
-		initial_competition_rate: float = GLOBAL_COMPETITION_RATE,
 	) -> None:
 		# breadth = 4 * |B|
 		super().__init__(
 			snapshot=snapshot,
 			ctx=ctx,
-			initial_competition_rate=initial_competition_rate,
 			depth=6,
 			breadth_rate=8,
 		)

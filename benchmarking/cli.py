@@ -1,308 +1,105 @@
-"""Command-line interface for the benchmarking pipelines."""
+"""Command-line interface for the benchmarking pipeline."""
 
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
+from typing import Iterable
 
-from .comparison import (
-	clone_single_config,
-	compute_target_overall,
-	merge_comparison_rows,
-	summarize_target_metrics,
-	write_comparison_markdown,
-)
-from .pipeline import BenchmarkPipeline
-from .player_eval import (
-	build_multi_player_scenario,
-	build_single_player_scenario,
-	default_multi_config,
-	default_single_config,
-)
-from .player_registry import DEFAULT_PLAYER_REGISTRY
-from .sample_scenarios import SCENARIO_BUILDERS
-from .utils import ensure_dir, slugify, write_csv
+from .config import generate_lineups
+from .pipeline import run_benchmark
 
 
-def parse_arguments() -> argparse.Namespace:
-	"""Build and parse CLI arguments."""
-
-	parser = argparse.ArgumentParser(
-		description='Benchmarking pipeline for the conversation simulator',
-	)
-	parser.add_argument(
-		'--scenario',
-		default='default',
-		help='Scenario key to run (use --list to display options)',
-	)
-	parser.add_argument(
-		'--output-root',
-		default=None,
-		help='Directory where benchmark results should be written',
-	)
-	parser.add_argument(
-		'--detailed',
-		action='store_true',
-		help='Force detailed outputs (overrides scenario defaults)',
-	)
-	parser.add_argument(
-		'--list',
-		action='store_true',
-		help='List available scenarios and exit',
-	)
-	parser.add_argument(
-		'--pipeline',
-		choices=['single', 'multi', 'compare'],
-		default=None,
-		help='Select predefined player-evaluation pipelines',
-	)
-	parser.add_argument(
-		'--mode',
-		choices=['simple', 'complex'],
-		default='simple',
-		help='Pipeline mode controlling number of test cases',
-	)
-	parser.add_argument(
-		'--targets',
-		nargs='+',
-		default=None,
-		help='Player codes to evaluate (pipeline mode)',
-	)
-	parser.add_argument(
-		'--lengths',
-		nargs='+',
-		type=int,
-		default=None,
-		help='Conversation lengths to sweep (override defaults)',
-	)
-	parser.add_argument(
-		'--player-counts',
-		nargs='+',
-		type=int,
-		default=None,
-		help='Total player counts to sweep (override defaults)',
-	)
-	parser.add_argument(
-		'--memory-sizes',
-		nargs='+',
-		type=int,
-		default=None,
-		help='Memory sizes to sweep (override defaults)',
-	)
-	parser.add_argument(
-		'--subject-counts',
-		nargs='+',
-		type=int,
-		default=None,
-		help='Subject counts to use (override defaults)',
-	)
-	parser.add_argument(
-		'--ratio-steps',
-		nargs='+',
-		type=float,
-		default=None,
-		help='Target ratio sweep values (override defaults)',
-	)
-	parser.add_argument(
-		'--competitors',
-		nargs='+',
-		default=None,
-		help='Competitor player codes for comparison suites (override defaults)',
-	)
-	parser.add_argument(
-		'--rounds-per-variant',
-		type=int,
-		default=None,
-		help='Number of rounds per variant (override defaults)',
-	)
-	parser.add_argument(
-		'--base-seed',
-		type=int,
-		default=None,
-		help='Base random seed for generated variants',
-	)
-	parser.add_argument(
-		'--clean-output',
-		action='store_true',
-		help='Remove previous runs inside the chosen output root before executing',
-	)
-	return parser.parse_args()
+def _parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run tournament benchmarking batches.")
+    parser.add_argument("test_player", help="Player preset code to benchmark (e.g., p3)")
+    parser.add_argument("--round-name", required=True, help="Label for this benchmark run")
+    parser.add_argument("--rounds", type=int, default=10, help="Number of Monte Carlo rounds")
+    parser.add_argument("--seed", type=int, default=91, help="Base random seed")
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Optional output root directory (defaults to benchmarking/output/<round_name>)",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-run simulations even if results.csv already exists",
+    )
+    parser.add_argument(
+        "--selection-method",
+        dest="selection_methods",
+        action="append",
+        help="Restrict to specific selection methods (may be repeated)",
+    )
+    parser.add_argument(
+        "--length",
+        dest="lengths",
+        type=int,
+        action="append",
+        help="Restrict to specific conversation lengths (may be repeated)",
+    )
+    parser.add_argument(
+        "--subjects",
+        dest="subjects",
+        type=int,
+        action="append",
+        help="Restrict to specific subject counts (may be repeated)",
+    )
+    parser.add_argument(
+        "--memory-tier",
+        dest="memory_tiers",
+        action="append",
+        help="Restrict to specific memory tiers (keys from config.MEMORY_MULTIPLIERS)",
+    )
+    parser.add_argument(
+        "--list-only",
+        action="store_true",
+        help="Print the planned lineups and exit without running simulations",
+    )
+    return parser.parse_args(argv)
 
 
-def list_scenarios() -> None:
-	"""Print available static scenarios and pipeline presets."""
+def main(argv: Iterable[str] | None = None) -> int:
+    args = _parse_args(argv)
 
-	print('Available scenarios:')
-	for key in sorted(SCENARIO_BUILDERS):
-		print(f'  - {key}')
-	print('Pipeline presets:')
-	print('  --pipeline single|multi --mode simple|complex')
+    try:
+        if args.list_only:
+            lineups = generate_lineups(args.test_player)
+            selection_filter = (
+                {str(method) for method in args.selection_methods}
+                if args.selection_methods
+                else None
+            )
+            for lineup in lineups:
+                if selection_filter and lineup.selection_method not in selection_filter:
+                    continue
+                print(
+                    f"{lineup.selection_method}: {lineup.name} -> {lineup.player_counts}"
+                )
+            return 0
 
+        csv_path = run_benchmark(
+            test_player=args.test_player,
+            round_name=args.round_name,
+            rounds=args.rounds,
+            seed=args.seed,
+            output_root=args.output_dir,
+            force=args.force,
+            selection_methods=args.selection_methods,
+            lengths=args.lengths,
+            subject_counts=args.subjects,
+            memory_tiers=args.memory_tiers,
+        )
+    except Exception as exc:  # noqa: BLE001 - CLI guardrail
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
-def main() -> None:
-	"""Entry point for running benchmarks via the CLI."""
-
-	args = parse_arguments()
-	if args.list:
-		list_scenarios()
-		return
-
-	pipeline_type = args.pipeline
-	scenario_key = args.scenario
-
-	if pipeline_type:
-		if not args.targets:
-			raise SystemExit('--targets must be provided when using pipeline mode')
-
-		mode = args.mode
-		if pipeline_type == 'single':
-			if len(args.targets) != 1:
-				raise SystemExit('Single pipeline requires exactly one target player code')
-			config = default_single_config(args.targets[0], mode)
-			if args.ratio_steps:
-				config.ratio_steps = tuple(args.ratio_steps)
-			if args.lengths:
-				config.lengths = tuple(args.lengths)
-			if args.player_counts:
-				config.player_counts = tuple(args.player_counts)
-			if args.memory_sizes:
-				config.memory_sizes = tuple(args.memory_sizes)
-			if args.subject_counts:
-				config.subject_counts = tuple(args.subject_counts)
-			if args.competitors:
-				config.competitor_pool = tuple(args.competitors)
-			if args.rounds_per_variant:
-				config.rounds = args.rounds_per_variant
-			if args.base_seed:
-				config.seed = args.base_seed
-			scenario = build_single_player_scenario(config)
-		elif pipeline_type == 'multi':
-			if len(args.targets) < 2:
-				raise SystemExit('Multi pipeline requires at least two target player codes')
-			config = default_multi_config(tuple(args.targets), mode)
-			if args.lengths:
-				config.shared_lengths = tuple(args.lengths)
-			if args.player_counts:
-				config.shared_player_counts = tuple(args.player_counts)
-			if args.memory_sizes:
-				config.shared_memory_sizes = tuple(args.memory_sizes)
-			if args.subject_counts:
-				config.subject_counts = tuple(args.subject_counts)
-			if args.ratio_steps:
-				config.ratio_steps = tuple(args.ratio_steps)
-			if args.competitors:
-				config.competitor_pool = tuple(args.competitors)
-			if args.rounds_per_variant:
-				config.rounds = args.rounds_per_variant
-			if args.base_seed:
-				config.seed = args.base_seed
-			scenario = build_multi_player_scenario(config)
-		else:  # compare
-			if len(args.targets) < 2:
-				raise SystemExit('Compare pipeline requires at least two target player codes')
-			base_config = default_single_config(args.targets[0], mode)
-			if args.ratio_steps:
-				base_config.ratio_steps = tuple(args.ratio_steps)
-			if args.lengths:
-				base_config.lengths = tuple(args.lengths)
-			if args.player_counts:
-				base_config.player_counts = tuple(args.player_counts)
-			if args.memory_sizes:
-				base_config.memory_sizes = tuple(args.memory_sizes)
-			if args.subject_counts:
-				base_config.subject_counts = tuple(args.subject_counts)
-			if args.competitors:
-				base_config.competitor_pool = tuple(args.competitors)
-			if args.rounds_per_variant:
-				base_config.rounds = args.rounds_per_variant
-			if args.base_seed:
-				base_config.seed = args.base_seed
-
-			output_root = Path(args.output_root or 'benchmarking/results/latest_run')
-			if args.clean_output and output_root.exists():
-				import shutil
-
-				shutil.rmtree(output_root)
-			ensure_dir(output_root)
-
-			comparison_rows = []
-			per_target = {}
-			reference_aggregates = None
-
-			for target in args.targets:
-				config = clone_single_config(base_config, target)
-				scenario = build_single_player_scenario(config)
-				target_output = output_root / slugify(target)
-				pipeline = BenchmarkPipeline(
-					scenario,
-					output_root=target_output,
-					detailed=args.detailed,
-					clean_output=False,
-				)
-				aggregates = pipeline.run()
-				reference_aggregates = reference_aggregates or aggregates
-				target_type = DEFAULT_PLAYER_REGISTRY.get(target).__name__
-				per_target[target] = summarize_target_metrics(
-					aggregates,
-					target_type=target_type,
-				)
-
-			rows = merge_comparison_rows(
-				per_target,
-				targets=tuple(args.targets),
-				aggregates_reference=reference_aggregates or [],
-			)
-			comparison_dir = output_root / 'comparison_summary'
-			ensure_dir(comparison_dir)
-			if rows:
-				base_fields = [
-					'suite',
-					'variant',
-					'target',
-					'avg_score',
-					'avg_shared_score',
-					'avg_individual',
-					'avg_involvement_ratio',
-					'avg_contributed_shared',
-					'avg_contributed_individual',
-					'importance',
-					'coherence',
-					'freshness',
-					'nonmonotone',
-					'player_numbers',
-					'rounds',
-				]
-				extra_fields = sorted(
-					{key for row in rows for key in row.keys() if key not in base_fields}
-				)
-				fieldnames = base_fields + extra_fields
-				write_csv(comparison_dir / 'comparison_summary.csv', fieldnames, rows)
-
-			overall = compute_target_overall(rows)
-			write_comparison_markdown(comparison_dir, rows=rows, overall=overall)
-
-			if comparison_dir.exists():
-				print(f'Comparison summary written to {comparison_dir}')
-			return
-	else:
-		if scenario_key == 'player_eval':
-			raise SystemExit(
-				'Use --pipeline single|multi with --targets to run the evaluation pipelines.'
-			)
-		if scenario_key not in SCENARIO_BUILDERS:
-			list_scenarios()
-			raise SystemExit(f"Unknown scenario '{scenario_key}'")
-		scenario = SCENARIO_BUILDERS[scenario_key]()
-	pipeline = BenchmarkPipeline(
-		scenario,
-		output_root=args.output_root,
-		detailed=args.detailed,
-		clean_output=args.clean_output,
-	)
-	pipeline.run()
-	if pipeline.last_run_dir:
-		print(f'Benchmark run completed. Results stored at {pipeline.last_run_dir}')
+    print(f"Aggregated results written to {csv_path}")
+    return 0
 
 
-if __name__ == '__main__':
-	main()
+if __name__ == "__main__":
+    raise SystemExit(main())

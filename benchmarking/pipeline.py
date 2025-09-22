@@ -1,474 +1,455 @@
-"""Benchmarking pipeline implementation."""
+"""Benchmarking pipeline orchestration."""
 
 from __future__ import annotations
 
-import json
+import csv
 import shutil
-from collections.abc import Iterable
-from dataclasses import asdict, dataclass
+import statistics
+import subprocess
+import sys
+from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable
 
-from core.engine import Engine
-from core.utils import ConversationAnalyzer, CustomEncoder
-from models.player import Player
+from players.player_mapping import PLAYER_CODE_TO_CLASS
 
-from .player_registry import DEFAULT_PLAYER_REGISTRY, PlayerRegistry
-from .reporting import write_run_overview, write_suite_index
-from .scenario import BenchmarkScenario, BenchmarkSuite, PlayerSpec, SimulationVariant
-from .utils import ensure_dir, slugify, timestamp, write_csv, write_json
-from .visualization import (
-	create_suite_focus_chart,
-	create_variant_player_comparison_chart,
+from .config import (
+    MEMORY_MULTIPLIERS,
+    SUBJECT_COUNTS,
+    CONVERSATION_LENGTHS,
+    Lineup,
+    derive_memory_size,
+    generate_lineups,
 )
 
+try:
+    from tqdm import tqdm
+except ImportError:  # pragma: no cover - tqdm optional dependency
+    tqdm = None
 
-@dataclass(slots=True)
-class VariantAggregate:
-	"""Summary of a variant after executing its rounds."""
+CLASS_NAME_TO_CODE = {
+    cls.__name__: code for code, cls in PLAYER_CODE_TO_CLASS.items()
+}
 
-	scenario: str
-	suite: str
-	variant: str
-	description: str
-	config: SimulationVariant
-	average_conversation_length: float
-	average_pauses: float
-	player_metrics: list[dict]
-	rounds_executed: int
-
-	def to_csv_rows(self) -> Iterable[dict]:
-		"""Flatten the per-player metrics for the global summary CSV."""
-
-		for metric in self.player_metrics:
-			row = {
-				'scenario': self.scenario,
-				'suite': self.suite,
-				'variant': self.variant,
-				'variant_description': self.description,
-				'player_type': metric['type'],
-				'avg_score': f'{metric["avg_score"]:.4f}',
-				'avg_shared_score': f'{metric["avg_shared_score"]:.4f}',
-				'avg_individual_score': f'{metric["avg_individual"]:.4f}',
-				'avg_involvement_ratio': f'{metric["avg_involvement_ratio"]:.4f}',
-				'avg_contributed_shared': f'{metric["avg_contributed_shared"]:.4f}',
-				'avg_contributed_individual': f'{metric["avg_contributed_individual"]:.4f}',
-				'importance_per_turn': f'{metric["importance"]:.4f}',
-				'coherence_per_turn': f'{metric["coherence"]:.4f}',
-				'freshness_per_turn': f'{metric["freshness"]:.4f}',
-				'nonmonotone_per_turn': f'{metric["nonmonotone"]:.4f}',
-				'player_instances': metric['player_numbers'],
-				'rounds': self.config.rounds,
-				'seed_start': self.config.seed,
-				'length': self.config.length,
-				'memory_size': self.config.memory_size,
-				'subjects': self.config.subjects,
-				'average_actual_length': f'{self.average_conversation_length:.4f}',
-				'average_pauses': f'{self.average_pauses:.4f}',
-			}
-			for key, value in sorted(self.config.metadata.items()):
-				row[f'meta_{key}'] = value
-			yield row
+METRIC_KEYS = [
+    "score",
+    "individual",
+    "shared_score",
+    "contributed_individual_score",
+    "contributed_shared_score",
+    "involvement_ratio",
+    "importance",
+    "coherence",
+    "freshness",
+    "nonmonotone",
+]
 
 
-class BenchmarkPipeline:
-	"""Run a scenario and collect CSV/report/chart artefacts."""
+def _normalize_value(value: float | int | str | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        return f"{value:.4f}"
+    return str(value)
 
-	def __init__(
-		self,
-		scenario: BenchmarkScenario,
-		*,
-		output_root: str | Path | None = None,
-		registry: PlayerRegistry | None = None,
-		detailed: bool = False,
-		clean_output: bool = False,
-	) -> None:
-		self.scenario = scenario
-		self.registry = registry or DEFAULT_PLAYER_REGISTRY
-		self.detailed = detailed
-		root_path = Path(output_root or scenario.default_output_root)
-		self.run_root = ensure_dir(root_path)
-		self.analyzer = ConversationAnalyzer()
-		self.last_run_dir: Path | None = None
-		self.clean_output = clean_output
 
-	def run(self) -> list[VariantAggregate]:
-		if self.clean_output:
-			self._clean_previous_runs()
+@dataclass
+class BenchmarkConfig:
+    lineup: Lineup
+    length: int
+    subjects: int
+    memory_tier: str
+    memory_size: int
 
-		run_id = f'{timestamp()}_{slugify(self.scenario.name)}'
-		scenario_dir = ensure_dir(self.run_root / run_id)
-		write_json(
-			scenario_dir / 'scenario_config.json',
-			self._scenario_to_dict(self.scenario),
-		)
-		self.last_run_dir = scenario_dir
+    @property
+    def key(self) -> str:
+        return f"L{self.length}_S{self.subjects}_B{self.memory_size}_{self.memory_tier}"
 
-		aggregates: list[VariantAggregate] = []
-		suite_dirs: dict[str, Path] = {}
-		variant_dirs: dict[tuple[str, str], Path] = {}
 
-		for suite in self.scenario.suites:
-			suite_dir = ensure_dir(scenario_dir / slugify(suite.name))
-			suite_dirs[suite.name] = suite_dir
-			suite_specific_aggregates: list[VariantAggregate] = []
-			for variant in suite.variants:
-				variant_dir = ensure_dir(suite_dir / slugify(variant.label))
-				variant_dirs[(suite.name, variant.label)] = variant_dir
-				variant_aggregate = self._run_variant(
-					suite=suite,
-					variant=variant,
-					output_dir=variant_dir,
-				)
-				aggregates.append(variant_aggregate)
-				suite_specific_aggregates.append(variant_aggregate)
+def _resolve_player_class(code: str) -> str:
+    cls = PLAYER_CODE_TO_CLASS.get(code)
+    if cls is None:
+        raise ValueError(f"Unknown player code: {code}")
+    return cls.__name__
 
-				# Charts per variant: compare player types and annotate configuration
-				create_variant_player_comparison_chart(
-					variant_aggregate,
-					output_dir=variant_dir,
-				)
 
-			# Charts per suite: show how each player evolves across the sweep
-			create_suite_focus_chart(
-				suite,
-				suite_specific_aggregates,
-				output_dir=suite_dir,
-				registry=self.registry,
-			)
+def _format_player_counts(player_counts: dict[str, int]) -> str:
+    parts = [f"{code}x{player_counts[code]}" for code in sorted(player_counts)]
+    return ";".join(parts)
 
-			write_suite_index(
-				suite,
-				suite_specific_aggregates,
-				suite_dir,
-				variant_dirs,
-			)
 
-		summary_csv = scenario_dir / 'summary.csv'
-		csv_rows = [row for agg in aggregates for row in agg.to_csv_rows()]
-		if csv_rows:
-			base_fields = [
-				'scenario',
-				'suite',
-				'variant',
-				'variant_description',
-				'player_type',
-				'avg_score',
-				'avg_shared_score',
-				'avg_individual_score',
-				'avg_involvement_ratio',
-				'avg_contributed_shared',
-				'avg_contributed_individual',
-				'importance_per_turn',
-				'coherence_per_turn',
-				'freshness_per_turn',
-				'nonmonotone_per_turn',
-				'player_instances',
-				'rounds',
-				'seed_start',
-				'length',
-				'memory_size',
-				'subjects',
-				'average_actual_length',
-				'average_pauses',
-			]
-			extra_fields = sorted(
-				{key for row in csv_rows for key in row.keys() if key not in base_fields}
-			)
-			fieldnames = base_fields + extra_fields
-			write_csv(summary_csv, fieldnames, csv_rows)
+def _run_simulation(
+    repo_root: Path,
+    test_player: str,
+    config_dir: Path,
+    config: BenchmarkConfig,
+    rounds: int,
+    seed: int,
+    force: bool,
+) -> Path:
+    target_csv = config_dir.parent / f"{config.key}.csv"
 
-		report_path = scenario_dir / 'summary_report.txt'
-		report_content = self._build_report(aggregates)
-		report_path.write_text(report_content, encoding='utf-8')
+    if target_csv.exists():
+        if force:
+            target_csv.unlink()
+        else:
+            return target_csv
 
-		overview_path = scenario_dir / 'README.md'
-		overview_path.write_text(
-			write_run_overview(
-				scenario=self.scenario,
-				aggregates=aggregates,
-				scenario_dir=scenario_dir,
-				suite_dirs=suite_dirs,
-				variant_dirs=variant_dirs,
-			),
-			encoding='utf-8',
-		)
+    if config_dir.exists() and config_dir.is_dir() and force:
+        shutil.rmtree(config_dir)
 
-		self._update_latest_symlink(scenario_dir)
+    config_dir.mkdir(parents=True, exist_ok=True)
 
-		return aggregates
+    cmd: list[str] = [sys.executable, "main.py"]
+    for code, count in config.lineup.player_counts.items():
+        cmd.extend(["--player", code, str(count)])
+    cmd.extend(
+        [
+            "--length",
+            str(config.length),
+            "--memory_size",
+            str(config.memory_size),
+            "--subjects",
+            str(config.subjects),
+            "--rounds",
+            str(rounds),
+            "--seed",
+            str(seed),
+            "--output_path",
+            str(config_dir),
+            "--test_player",
+            test_player,
+        ]
+    )
 
-	def _run_variant(
-		self,
-		*,
-		suite: BenchmarkSuite,
-		variant: SimulationVariant,
-		output_dir: Path,
-	) -> VariantAggregate:
-		player_classes = self._expand_player_specs(variant.players)
-		player_count = len(player_classes)
-		metric_accumulator: dict[str, dict] = {}
-		lengths: list[int] = []
-		pauses: list[int] = []
+    print(f"[benchmark] Running {' '.join(cmd)}")
+    subprocess.run(cmd, cwd=repo_root, check=True)
 
-		detailed_outputs = self.detailed or variant.detailed_outputs
-		for round_index in range(variant.rounds):
-			seed = variant.seed + round_index
-			engine = Engine(
-				players=player_classes,
-				player_count=player_count,
-				subjects=variant.subjects,
-				memory_size=variant.memory_size,
-				conversation_length=variant.length,
-				seed=seed,
-			)
-			simulation_results = engine.run(player_classes)
+    results_csv = config_dir / "results.csv"
+    if not results_csv.exists():
+        raise FileNotFoundError(f"results.csv not produced at {results_csv}")
 
-			lengths.append(simulation_results['scores'].get('conversation_length', 0))
-			pauses.append(simulation_results['scores'].get('pauses', 0))
+    target_csv.parent.mkdir(parents=True, exist_ok=True)
+    results_csv.replace(target_csv)
 
-			# Aggregate per-player-type statistics for later averaging
-			per_type_rows = self.analyzer.compute_type_averages(simulation_results, engine)
-			for row in per_type_rows:
-				entry = metric_accumulator.setdefault(
-					row['type'],
-					{
-						'sum_score': 0.0,
-						'sum_shared': 0.0,
-						'sum_individual': 0.0,
-						'sum_involvement': 0.0,
-						'sum_contrib_shared': 0.0,
-						'sum_contrib_individual': 0.0,
-						'sum_importance': 0.0,
-						'sum_coherence': 0.0,
-						'sum_freshness': 0.0,
-						'sum_nonmonotone': 0.0,
-						'player_numbers': row.get('player_numbers', 0),
-						'appearances': 0,
-					},
-				)
-				entry['sum_score'] += float(row['score'])
-				entry['sum_shared'] += float(row['shared_score'])
-				entry['sum_individual'] += float(row['individual'])
-				entry['sum_involvement'] += float(row['involvement_ratio'])
-				entry['sum_contrib_shared'] += float(row['contributed_shared_score'])
-				entry['sum_contrib_individual'] += float(row['contributed_individual_score'])
-				entry['sum_importance'] += float(row['importance'])
-				entry['sum_coherence'] += float(row['coherence'])
-				entry['sum_freshness'] += float(row['freshness'])
-				entry['sum_nonmonotone'] += float(row['nonmonotone'])
-				entry['appearances'] += 1
+    try:
+        shutil.rmtree(config_dir)
+    except OSError:
+        pass
 
-			if detailed_outputs:
-				self._write_round_outputs(
-					engine=engine,
-					simulation_results=simulation_results,
-					base_dir=output_dir / f'round_{round_index + 1:02d}',
-				)
+    return target_csv
 
-		aggregated_metrics: list[dict] = []
-		for player_type, totals in metric_accumulator.items():
-			appearances = max(1, totals.pop('appearances', 1))
-			aggregated_metrics.append(
-				{
-					'type': player_type,
-					'avg_score': round(totals['sum_score'] / appearances, 4),
-					'avg_shared_score': round(totals['sum_shared'] / appearances, 4),
-					'avg_individual': round(totals['sum_individual'] / appearances, 4),
-					'avg_involvement_ratio': round(totals['sum_involvement'] / appearances, 4),
-					'avg_contributed_shared': round(totals['sum_contrib_shared'] / appearances, 4),
-					'avg_contributed_individual': round(
-						totals['sum_contrib_individual'] / appearances, 4
-					),
-					'importance': round(totals['sum_importance'] / appearances, 4),
-					'coherence': round(totals['sum_coherence'] / appearances, 4),
-					'freshness': round(totals['sum_freshness'] / appearances, 4),
-					'nonmonotone': round(totals['sum_nonmonotone'] / appearances, 4),
-					'player_numbers': totals['player_numbers'],
-				}
-			)
-		aggregated_metrics.sort(key=lambda item: item['avg_score'], reverse=True)
 
-		variant_summary_path = output_dir / 'variant_summary.csv'
-		if aggregated_metrics:
-			fieldnames = [
-				'player_type',
-				'avg_score',
-				'avg_shared_score',
-				'avg_individual',
-				'avg_involvement_ratio',
-				'avg_contributed_shared',
-				'avg_contributed_individual',
-				'importance',
-				'coherence',
-				'freshness',
-				'nonmonotone',
-				'player_numbers',
-			]
-			rows = [
-				{
-					'player_type': metric['type'],
-					'avg_score': f'{metric["avg_score"]:.4f}',
-					'avg_shared_score': f'{metric["avg_shared_score"]:.4f}',
-					'avg_individual': f'{metric["avg_individual"]:.4f}',
-					'avg_involvement_ratio': f'{metric["avg_involvement_ratio"]:.4f}',
-					'avg_contributed_shared': f'{metric["avg_contributed_shared"]:.4f}',
-					'avg_contributed_individual': f'{metric["avg_contributed_individual"]:.4f}',
-					'importance': f'{metric["importance"]:.4f}',
-					'coherence': f'{metric["coherence"]:.4f}',
-					'freshness': f'{metric["freshness"]:.4f}',
-					'nonmonotone': f'{metric["nonmonotone"]:.4f}',
-					'player_numbers': metric['player_numbers'],
-				}
-				for metric in aggregated_metrics
-			]
-			write_csv(variant_summary_path, fieldnames, rows)
+def _parse_float(value: str | None) -> float:
+    if value in (None, ""):
+        return 0.0
+    try:
+        return float(value)
+    except ValueError:
+        return 0.0
 
-		config_copy = asdict(variant)
-		write_json(output_dir / 'config.json', config_copy)
 
-		average_length = round(sum(lengths) / len(lengths), 4) if lengths else 0.0
-		average_pauses = round(sum(pauses) / len(pauses), 4) if pauses else 0.0
+def _extract_metrics(results_csv: Path) -> list[dict[str, object]]:
+    with results_csv.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
 
-		return VariantAggregate(
-			scenario=self.scenario.name,
-			suite=suite.name,
-			variant=variant.label,
-			description=variant.description,
-			config=variant,
-			average_conversation_length=average_length,
-			average_pauses=average_pauses,
-			player_metrics=aggregated_metrics,
-			rounds_executed=variant.rounds,
-		)
+    if not rows:
+        raise ValueError(f"No rows found in {results_csv}")
 
-	def _expand_player_specs(self, specs: list[PlayerSpec]) -> list[type[Player]]:
-		"""Expand player specifications into the classes expected by the engine."""
+    sorted_rows = sorted(rows, key=lambda row: _parse_float(row.get("score")), reverse=True)
+    ranks: dict[str, int] = {}
+    for idx, row in enumerate(sorted_rows, start=1):
+        player_type = row.get("type", "")
+        ranks[player_type] = idx
 
-		players: list[type[Player]] = []
-		for spec in specs:
-			player_cls = self.registry.get(spec.code)
-			players.extend([player_cls] * spec.count)
-		return players
+    entries: list[dict[str, object]] = []
+    for row in rows:
+        player_type = row.get("type", "")
+        metrics: dict[str, float] = {}
+        for key, value in row.items():
+            if key == "type":
+                continue
+            metrics[key] = _parse_float(value)
+        metrics.setdefault("player_numbers", 0.0)
+        entries.append(
+            {
+                "class_name": player_type,
+                "rank": ranks.get(player_type, 0),
+                "metrics": metrics,
+            }
+        )
 
-	def _write_round_outputs(
-		self, *, engine: Engine, simulation_results: dict, base_dir: Path
-	) -> None:
-		"""Persist per-round artefacts (JSON, text, and CSV)."""
+    return entries
 
-		ensure_dir(base_dir)
-		json_path = base_dir / 'simulation_results.json'
-		with json_path.open('w', encoding='utf-8') as handle:
-			json.dump(simulation_results, handle, cls=CustomEncoder, indent=2)
 
-		report_text = self.analyzer.raw_data_to_human_readable(simulation_results, engine)
-		(base_dir / 'analysis.txt').write_text(report_text, encoding='utf-8')
+def _build_rows(
+    *,
+    data_rows: list[dict[str, float | int | str]],
+    output_csv: Path,
+    player_label: str,
+    round_name: str,
+) -> None:
+    headers = [
+        "round_name",
+        "Player",
+        "selection_method",
+        "lineup_name",
+        "description",
+        "P",
+        "L",
+        "B",
+        "memory_tier",
+        "S",
+        "rounds",
+        "rank",
+        "player_numbers",
+        "player_info",
+        "score",
+        "individual",
+        "shared_score",
+        "contributed_individual_score",
+        "contributed_shared_score",
+        "involvement_ratio",
+        "importance",
+        "coherence",
+        "freshness",
+        "nonmonotone",
+    ]
 
-		csv_path = base_dir / 'player_metrics.csv'
-		self.analyzer.raw_data_to_csv(
-			simulation_results,
-			engine=engine,
-			csv_path=str(csv_path),
-		)
+    sorted_rows = sorted(
+        data_rows,
+        key=lambda row: (
+            row["Player"],
+            row["P"],
+            row["L"],
+            row["B"],
+            row["S"],
+            row["selection_method"],
+            row["lineup_name"],
+        ),
+    )
 
-	def _scenario_to_dict(self, scenario: BenchmarkScenario) -> dict:
-		"""Convert a scenario to a serialisable dictionary."""
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    with output_csv.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=headers)
+        writer.writeheader()
+        for row in sorted_rows:
+            writer.writerow({key: _normalize_value(row.get(key, "")) for key in headers})
 
-		return {
-			'name': scenario.name,
-			'description': scenario.description,
-			'suites': [
-				{
-					'name': suite.name,
-					'description': suite.description,
-					'focus_player': suite.focus_player,
-					'variants': [
-						{
-							'label': variant.label,
-							'description': variant.description,
-							'length': variant.length,
-							'memory_size': variant.memory_size,
-							'subjects': variant.subjects,
-							'rounds': variant.rounds,
-							'seed': variant.seed,
-							'metadata': variant.metadata,
-							'players': [spec.as_dict() for spec in variant.players],
-						}
-						for variant in suite.variants
-					],
-				}
-				for suite in scenario.suites
-			],
-		}
+        if sorted_rows:
+            summary = _summary_row(sorted_rows, player_label, round_name)
+            writer.writerow({key: _normalize_value(summary.get(key, "")) for key in headers})
 
-	def _build_report(self, aggregates: list[VariantAggregate]) -> str:
-		"""Compose the human-readable summary report."""
 
-		if not aggregates:
-			return 'No benchmark data available.'
+def _summary_row(
+    rows: list[dict[str, float | int | str]],
+    player_label: str,
+    round_name: str,
+) -> dict[str, str | float | int]:
+    numeric_fields = [
+        "rank",
+        "score",
+        "individual",
+        "shared_score",
+        "contributed_individual_score",
+        "contributed_shared_score",
+        "involvement_ratio",
+        "importance",
+        "coherence",
+        "freshness",
+        "nonmonotone",
+    ]
+    summary: dict[str, float | int | str] = {key: "" for key in rows[0].keys()}
+    summary.update(
+        {
+            "Player": player_label,
+            "round_name": round_name,
+            "lineup_name": "summary",
+            "selection_method": "all",
+            "description": "Averages across configurations",
+        }
+    )
 
-		lines: list[str] = []
-		lines.append(f'SCENARIO: {self.scenario.name}')
-		lines.append(self.scenario.description)
-		lines.append('')
-		lines.append(f'Total suites: {len(self.scenario.suites)}')
-		total_variants = len(aggregates)
-		total_rounds = sum(agg.rounds_executed for agg in aggregates)
-		lines.append(f'Total variants: {total_variants}')
-		lines.append(f'Total rounds executed: {total_rounds}')
-		lines.append('=' * 70)
-		lines.append('')
+    for key in numeric_fields:
+        values = [float(row[key]) for row in rows if key in row]
+        if values:
+            summary[key] = statistics.mean(values)
 
-		aggregates_by_suite: dict[str, list[VariantAggregate]] = {}
-		for aggregate in aggregates:
-			aggregates_by_suite.setdefault(aggregate.suite, []).append(aggregate)
+    summary["P"] = ""
+    summary["L"] = ""
+    summary["B"] = ""
+    summary["S"] = ""
+    summary["rounds"] = ""
+    summary["player_numbers"] = ""
+    summary["player_info"] = ""
+    summary["memory_tier"] = ""
+    return summary
 
-		for suite in self.scenario.suites:
-			suite_aggregates = aggregates_by_suite.get(suite.name, [])
-			lines.append(f'Suite: {suite.name}')
-			lines.append(suite.description)
-			lines.append(f'Variants: {len(suite_aggregates)}')
-			lines.append('-' * 70)
-			for aggregate in suite_aggregates:
-				lines.append(f'  Variant: {aggregate.variant}')
-				if aggregate.description:
-					lines.append(f'    {aggregate.description}')
-				lines.append(
-					f'    Avg length: {aggregate.average_conversation_length:.4f} | Avg pauses: {aggregate.average_pauses:.4f}'
-				)
-				for metric in aggregate.player_metrics:
-					lines.append(
-						'    '
-						+ f'{metric["type"]}: score={metric["avg_score"]:.4f}, '
-						+ f'shared={metric["avg_shared_score"]:.4f}, individual={metric["avg_individual"]:.4f}, involvement={metric["avg_involvement_ratio"]:.4f}'
-					)
-				if aggregate.config.metadata:
-					meta_parts = [f'{k}={v}' for k, v in aggregate.config.metadata.items()]
-					lines.append('    Metadata: ' + ', '.join(meta_parts))
-				lines.append('')
-			lines.append(''.rstrip())
-		return '\n'.join(lines)
 
-	def _clean_previous_runs(self) -> None:
-		"""Remove previous run directories within the output root."""
+def run_benchmark(
+    *,
+    test_player: str,
+    round_name: str,
+    rounds: int,
+    seed: int = 91,
+    output_root: Path | None = None,
+    force: bool = False,
+    selection_methods: Iterable[str] | None = None,
+    lengths: Iterable[int] | None = None,
+    subject_counts: Iterable[int] | None = None,
+    memory_tiers: Iterable[str] | None = None,
+) -> Path:
+    """Run the benchmarking pipeline and return the aggregated CSV path."""
 
-		for item in list(self.run_root.iterdir()):
-			if item.name.startswith('.'):
-				continue
-			if item.is_symlink() or item.is_file():
-				item.unlink()
-			elif item.is_dir():
-				shutil.rmtree(item)
+    rounds = max(10, rounds)
 
-	def _update_latest_symlink(self, scenario_dir: Path) -> None:
-		"""Create/refresh a symlink pointing at the most recent run."""
+    repo_root = Path(__file__).resolve().parents[1]
+    output_root = (
+        Path(output_root)
+        if output_root is not None
+        else repo_root / "benchmarking" / "output" / round_name
+    )
+    output_root.mkdir(parents=True, exist_ok=True)
 
-		latest_link = self.run_root / f'latest_{slugify(self.scenario.name)}'
-		if latest_link.exists() or latest_link.is_symlink():
-			if latest_link.is_dir() and not latest_link.is_symlink():
-				shutil.rmtree(latest_link)
-			else:
-				latest_link.unlink()
-		latest_link.symlink_to(scenario_dir, target_is_directory=True)
+    lineups = generate_lineups(test_player)
+    player_class_name = _resolve_player_class(test_player)
 
-		marker = self.run_root / 'LATEST.txt'
-		marker.write_text(str(scenario_dir.resolve()), encoding='utf-8')
+    selection_filter = (
+        {str(method) for method in selection_methods}
+        if selection_methods is not None
+        else None
+    )
+    length_options = list(lengths) if lengths is not None else CONVERSATION_LENGTHS
+    subject_options = (
+        list(subject_counts) if subject_counts is not None else SUBJECT_COUNTS
+    )
+    if memory_tiers is not None:
+        memory_map = {name: MEMORY_MULTIPLIERS[name] for name in memory_tiers}
+    else:
+        memory_map = MEMORY_MULTIPLIERS
+
+    aggregated_rows: list[dict[str, float | int | str]] = []
+    per_player_rows: defaultdict[str, list[dict[str, float | int | str]]] = defaultdict(list)
+
+    active_lineups = [
+        lineup for lineup in lineups if not selection_filter or lineup.selection_method in selection_filter
+    ]
+
+    cases_per_lineup = len(length_options) * len(subject_options) * len(memory_map)
+    total_cases = cases_per_lineup * len(active_lineups)
+    progress = (
+        tqdm(total=total_cases, desc=f"{test_player} configs", unit="case")
+        if (tqdm and total_cases)
+        else None
+    )
+
+    for lineup in active_lineups:
+        lineup_dir = f"{lineup.selection_method}_{lineup.name}"
+
+        for length in length_options:
+            for subjects in subject_options:
+                for tier_name, multiplier in memory_map.items():
+                    memory_size = derive_memory_size(length, lineup.total_players, multiplier)
+                    config = BenchmarkConfig(
+                        lineup=lineup,
+                        length=length,
+                        subjects=subjects,
+                        memory_tier=tier_name,
+                        memory_size=memory_size,
+                    )
+                    config_dir = (
+                        output_root
+                        / "all_rounds"
+                        / lineup_dir
+                        / config.key
+                    )
+                    try:
+                        results_csv = _run_simulation(
+                            repo_root,
+                            test_player,
+                            config_dir,
+                            config,
+                            rounds,
+                            seed,
+                            force,
+                        )
+                    except subprocess.CalledProcessError as exc:
+                        print(f"[benchmark] Simulation failed for {config_dir}: {exc}")
+                        if progress:
+                            progress.update(1)
+                        continue
+
+                    try:
+                        entries = _extract_metrics(results_csv)
+                    except ValueError as exc:
+                        print(f"[benchmark] {exc}")
+                        if progress:
+                            progress.update(1)
+                        continue
+
+                    participant_counts = _format_player_counts(config.lineup.player_counts)
+
+                    for entry in entries:
+                        class_name = entry.get("class_name", "")
+                        player_code = CLASS_NAME_TO_CODE.get(class_name, class_name)
+                        metrics = entry.get("metrics", {})
+                        player_numbers = int(round(metrics.get("player_numbers", 0.0)))
+
+                        row: dict[str, float | int | str] = {
+                            "round_name": round_name,
+                            "Player": player_code,
+                            "selection_method": lineup.selection_method,
+                            "lineup_name": config.lineup.name,
+                            "description": config.lineup.description,
+                            "P": config.lineup.total_players,
+                            "L": config.length,
+                            "B": config.memory_size,
+                            "memory_tier": tier_name,
+                            "S": config.subjects,
+                            "rounds": rounds,
+                            "rank": entry.get("rank", 0),
+                            "player_numbers": player_numbers,
+                            "player_info": participant_counts,
+                        }
+
+                        for key in METRIC_KEYS:
+                            row[key] = metrics.get(key, 0.0)
+
+                        per_player_rows[player_code].append(row)
+
+                        if player_code == test_player or class_name == player_class_name:
+                            aggregated_rows.append(row)
+
+                    if progress:
+                        progress.update(1)
+
+    if progress:
+        progress.close()
+
+    aggregated_csv = output_root / f"{test_player}_benchmark.csv"
+    if aggregated_rows:
+        _build_rows(
+            data_rows=aggregated_rows,
+            output_csv=aggregated_csv,
+            player_label=test_player,
+            round_name=round_name,
+        )
+    else:
+        print("[benchmark] No data collected; aggregated CSV not created.")
+    other_players_dir = output_root / "other_players"
+    for code, rows in sorted(per_player_rows.items()):
+        if code == test_player:
+            continue
+        if not rows:
+            continue
+        output_path = other_players_dir / f"{code}_benchmark.csv"
+        _build_rows(
+            data_rows=rows,
+            output_csv=output_path,
+            player_label=code,
+            round_name=round_name,
+        )
+
+    return aggregated_csv
