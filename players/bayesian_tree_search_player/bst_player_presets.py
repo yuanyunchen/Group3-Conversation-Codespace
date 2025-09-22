@@ -282,12 +282,12 @@ class BayesianTreeBeamSearchPlayer(Player):
 		if self.static_threhold is not None:
 			threhold = self.static_threhold
 		else:
-			speak_panelty = self.set_speak_panelty(history)
-			DEFULT_DISCOUNT_RATE = 0.1
-			DEFULT_CONTEXT_LENGTH = 10
-			score_expectation = self.scorer.calculate_expected_score(
-				history, mode='discount_average'
-			)
+			#speak_panelty = self.set_speak_panelty(history)
+			#DEFULT_DISCOUNT_RATE = 0.1
+			#DEFULT_CONTEXT_LENGTH = 10
+			#score_expectation = self.scorer.calculate_expected_score(
+				#history, mode='discount_average'
+			#)
 			threhold = self.dynamic_threshold(history)
 
 		# (2) propose or keep silient
