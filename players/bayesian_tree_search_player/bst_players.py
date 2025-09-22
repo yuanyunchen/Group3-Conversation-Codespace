@@ -1,8 +1,8 @@
 from models.player import GameContext, PlayerSnapshot
 from players.bayesian_tree_search_player.bst_player_presets import BayesianTreeBeamSearchPlayer
 
-# Global threshold for all presets
-GLOBAL_BST_THRESHOLD = 0.5
+# Global threhold for all presets
+GLOBAL_BST_THREHOLD = 0.5
 GLOBAL_COMPETITION_RATE = 0.5
 
 
@@ -19,7 +19,7 @@ class BayesTreeBeamLow(BayesianTreeBeamSearchPlayer):
 			initial_competition_rate=initial_competition_rate,
 			depth=2,
 			breadth=4,
-			static_threhold=GLOBAL_BST_THRESHOLD,
+			static_threhold=GLOBAL_BST_THREHOLD,
 		)
 
 
@@ -36,7 +36,7 @@ class BayesTreeBeamMedium(BayesianTreeBeamSearchPlayer):
 			initial_competition_rate=initial_competition_rate,
 			depth=3,
 			breadth=16,
-			static_threhold=GLOBAL_BST_THRESHOLD,
+			#static_threhold=GLOBAL_BST_THREHOLD,
 		)
 
 
@@ -53,7 +53,7 @@ class BayesTreeBeamHigh(BayesianTreeBeamSearchPlayer):
 			initial_competition_rate=initial_competition_rate,
 			depth=6,
 			breadth=128,
-			static_threhold=GLOBAL_BST_THRESHOLD,
+			static_threhold=GLOBAL_BST_THREHOLD,
 		)
 
 

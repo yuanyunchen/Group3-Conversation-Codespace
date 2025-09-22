@@ -225,7 +225,43 @@ class BayesianTreeBeamSearchPlayer(Player):
 	def set_speak_panelty(self, history):
 		return self.initial_speak_panelty
 
-	# ---------------------------------------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------------------------------------
+	# discount_rate 0.12 | static_baseline 0.45 | blend_factor .60 have worked the best when paired against itself (emanuel)
+	# 0.10, 0.53, 0.10 seem to work better when paired with greedy bots
+	def dynamic_threshold(self, history: list, discount_rate: float = 0.12,
+						static_baseline: float = 0.45, blend_factor: float = 0.6) -> float:
+		"""
+		Compute a dynamic threshold for proposing items.
+
+		- uses a discounted moving average of item scores.
+		- skips 'None' items (pauses).
+		- blends with a static baseline for stability.
+		"""
+		ema = None
+		# skips through paused items
+		for i, item in enumerate(history):
+			if item is None:
+				continue 
+			# get the context aka what was said, then evaluate it
+			context = [x for x in history[:i] if x is not None]
+			score = self.scorer.evaluate(item, context)
+			# get a moving average of the scores
+			if ema is None:
+				ema = score
+			else:
+				ema = discount_rate * score + (1 - discount_rate) * ema
+
+		# if history was all None / pause, fallback to static baseline
+		if ema is None:
+			ema = static_baseline
+
+		# blend average with static baseline
+		threshold = blend_factor * ema + (1 - blend_factor) * static_baseline
+		return threshold
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------------------------
+
 
 	def propose_item(self, history: list[Item]) -> Item | None:
 		# 1, set the hyperparameters
@@ -252,7 +288,7 @@ class BayesianTreeBeamSearchPlayer(Player):
 			score_expectation = self.scorer.calculate_expected_score(
 				history, mode='discount_average'
 			)
-			threhold = score_expectation + speak_panelty
+			threhold = self.dynamic_threshold(history)
 
 		# (2) propose or keep silient
 		if score > threhold:
