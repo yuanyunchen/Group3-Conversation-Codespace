@@ -234,6 +234,8 @@ class BayesianTreeBeamSearchPlayer(Player):
 		discount_rate: float = 0.12,
 		static_baseline: float = 0.45,
 		blend_factor: float = 0.6,
+		##
+		threshold_upper_bound: float = 0.6
 	) -> float:
 		"""
 		Compute a dynamic threshold for proposing items.
@@ -242,14 +244,22 @@ class BayesianTreeBeamSearchPlayer(Player):
 		- skips 'None' items (pauses).
 		- blends with a static baseline for stability.
 		"""
+  
 		ema = None
 		# skips through paused items
-		for i, item in enumerate(history):
+		### upper bound of cauculation. 
+
+		MAX_CONTEXT_LENGTH = int(10 / discount_rate) if discount_rate else 100
+		t = len(history)
+		# for i, item in enumerate(history):
+		for i in range(max(0, t - MAX_CONTEXT_LENGTH), t):
+			item = history[i]
 			if item is None:
 				continue
-			# get the context aka what was said, then evaluate it
-			context = [x for x in history[:i] if x is not None]
-			score = self.scorer.evaluate(item, context)
+			### efficiency issue: O(N^2) --> O(N)
+			# context = [x for x in history[:i] if x is not None] 
+			# score = self.scorer.evaluate(item, context)
+			score = self.scorer.evaluate_at_position(history, i)
 			# get a moving average of the scores
 			ema = score if ema is None else discount_rate * score + (1 - discount_rate) * ema
 
@@ -259,6 +269,10 @@ class BayesianTreeBeamSearchPlayer(Player):
 
 		# blend average with static baseline
 		threshold = blend_factor * ema + (1 - blend_factor) * static_baseline
+		# threshold = max(threshold, ema + self.initial_speak_panelty) ## worse
+		### add upper bound
+		threshold = min(threshold, threshold_upper_bound)
+
 		return threshold
 
 	# ---------------------------------------------------------------------------------------------------------------------------------------------------

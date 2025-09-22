@@ -2,10 +2,10 @@
 #          ◅▯◊║◊▯▻   Global Setting   ◅▯◊║◊▯▻
 
 # player to teset (primary focus player)
-test_player="p_bst_medium"
+# test_player="p_bst_medium"
 # test_player="p_balanced_greedy"
 
-# test_player="p3"
+test_player="p3"
 
 # global setting: (default L 10, B 10, S 20)
 L=50
@@ -17,13 +17,13 @@ S=20
 # derived round/output settings
 root="results"
 
-round_name="test_dynamic_threhold__0922_${test_player}"
+round_name="test_before_commit__0922_${test_player}"
 
 output_root="$root/${round_name}_L${L}B${B}S${S}"
 
 # test mode control
 gui_on="false"  
-rounds=10 # random rounds with same setting. 
+rounds=5 # random rounds with same setting. 
 detailed_on="false" # detailed
 
 # Set GUI flag based on gui_on variable
@@ -47,12 +47,39 @@ rounds_flag="--rounds $rounds"
 
 
 
-# # # collaboration
+# # # self collaboration
 python main.py --player $test_player 10 --length $L --memory_size $B --subjects $S --output_path "$output_root/self_collaboration" --test_player $test_player $gui_flag $rounds_flag $detailed_flag
 
 
+# # # long self collaboration
+python main.py --player $test_player 10 --length 200 --memory_size $B --subjects $S --output_path "$output_root/long_self_collaboration" --test_player $test_player $gui_flag $rounds_flag $detailed_flag
+
+
+
 # # # against random player
-# python main.py --player $test_player 2 --player pr 8 --length $L --memory_size $B --subjects $S --output_path "$output_root/against_random_player" --test_player $test_player $gui_flag $rounds_flag $detailed_flag
+python main.py --player $test_player 2 --player pr 8 --length $L --memory_size $B --subjects $S --output_path "$output_root/against_random_player" --test_player $test_player $gui_flag $rounds_flag $detailed_flag
+
+
+# # # with good player
+player_list="p_zipper p_selfless_greedy p_balanced_greedy p_bst_low p_bst_medium"
+
+cmd="python main.py"
+player_added=false
+
+for other_player in $player_list; do
+    if [ "$other_player" = "$test_player" ]; then
+        cmd="$cmd --player $other_player 4"
+        player_added=true
+    else
+        cmd="$cmd --player $other_player 2"
+    fi
+done
+
+if [ "$player_added" = "false" ]; then
+    cmd="$cmd --player $test_player 2"
+fi
+$cmd --length $L --memory_size $B --subjects $S --output_path "$output_root/good_player" --test_player $test_player $gui_flag $rounds_flag $detailed_flag
+
 
 
 # complex environment
@@ -78,6 +105,28 @@ if [ "$player_added" = "false" ]; then
 fi
 $cmd --length $L --memory_size $B --subjects $S --output_path "$output_root/complex_environment" --test_player $test_player $gui_flag $rounds_flag $detailed_flag
 
+
+
+
+# long complex environment
+player_list="pr p_zipper p_selfless_greedy p_selfish_greedy p_balanced_greedy p_bst_low p_bst_medium"
+
+cmd="python main.py"
+player_added=false
+
+for other_player in $player_list; do
+    if [ "$other_player" = "$test_player" ]; then
+        cmd="$cmd --player $other_player 4"
+        player_added=true
+    else
+        cmd="$cmd --player $other_player 2"
+    fi
+done
+
+if [ "$player_added" = "false" ]; then
+    cmd="$cmd --player $test_player 2"
+fi
+$cmd --length 200 --memory_size $B --subjects $S --output_path "$output_root/long_complex_environment" --test_player $test_player $gui_flag $rounds_flag $detailed_flag
 
 
 python integrate_results.py $output_root $test_player 

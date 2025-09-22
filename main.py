@@ -4,44 +4,11 @@ from core.engine import Engine
 from core.utils import ConversationAnalyzer, CustomEncoder
 from models.cli import settings
 from models.player import Player
-from players.bayesian_tree_search_player.bst_players import (
-	BayesTreeBeamHigh,
-	BayesTreeBeamLow,
-	BayesTreeBeamMedium,
-	BayesTreeDynamicStandard,
-	BayesTreeDynamicWidth,
-)
-from players.bayesian_tree_search_player.greedy_players import (
-	BalancedGreedyPlayer,
-	SelfishGreedyPlayer,
-	SelflessGreedyPlayer,
-)
-from players.pause_player import PausePlayer
-from players.player_3.player import Player3
-from players.random_player import RandomPlayer
-from players.zipper_player.player import ZipperPlayer
+from players.player_mapping import PLAYER_CODE_TO_CLASS
 from ui.gui import run_gui
 
 ### add the mapping here when adding new players.
-g_player_classes = {
-	'pr': RandomPlayer,
-	'pp': PausePlayer,
-	# Final Player to present.
-	'p3': Player3,
-	# zipper player
-	'p_zipper': ZipperPlayer,
-	# greedy players
-	'p_balanced_greedy': BalancedGreedyPlayer,
-	'p_selfless_greedy': SelflessGreedyPlayer,
-	'p_selfish_greedy': SelfishGreedyPlayer,
-	# bayesian tree + beam search player (different efforts) | balanced competition + no threhold.
-	'p_bst_low': BayesTreeBeamLow,
-	'p_bst_medium': BayesTreeBeamMedium,
-	'p_bst_high': BayesTreeBeamHigh,
-	'p_bst_dynamic': BayesTreeDynamicStandard,
-	'p_bst_dynamic_width': BayesTreeDynamicWidth,
-	'p_bst_dynamic_depth': BayesTreeDynamicWidth,
-}
+g_player_classes = PLAYER_CODE_TO_CLASS
 
 
 def main():
