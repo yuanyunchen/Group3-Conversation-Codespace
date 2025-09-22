@@ -36,7 +36,7 @@ class BayesTreeBeamMedium(BayesianTreeBeamSearchPlayer):
 			initial_competition_rate=initial_competition_rate,
 			depth=3,
 			breadth=16,
-			#static_threhold=GLOBAL_BST_THREHOLD,
+			# static_threhold=GLOBAL_BST_THREHOLD,
 		)
 
 

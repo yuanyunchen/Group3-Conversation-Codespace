@@ -211,13 +211,15 @@ class ConversationScorer:
 			return 0.0
 		individual_score = self.calculate_individual_score(item)
 		shared_score = self.calculate_shared_score_at_position(history, position)
-		return (
-			self.competition_rate * individual_score
-			+ (1 - self.competition_rate) * shared_score
-		)
+		return self.competition_rate * individual_score + (1 - self.competition_rate) * shared_score
 
-
-	def calculate_expected_score(self, history: list[Item], mode: str = "discount_average", context_length: int = None, discount_rate: float =None) -> float:
+	def calculate_expected_score(
+		self,
+		history: list[Item],
+		mode: str = 'discount_average',
+		context_length: int = None,
+		discount_rate: float = None,
+	) -> float:
 		"""
 		Compute an expected score from recent history using this scorer.
 
@@ -266,7 +268,3 @@ class ConversationScorer:
 			sum_ws += w * s
 
 		return sum_ws / sum_w if sum_w > 0 else 0.0
-
-
-
-
