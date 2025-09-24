@@ -5,7 +5,7 @@
 # test_player="p_bst_medium"
 # test_player="p_balanced_greedy"
 
-test_player="p_bst_medium"
+test_player="p3"
 
 # global setting: (default L 10, B 10, S 20)
 L=50
@@ -16,13 +16,13 @@ S=20
 # derived round/output settings
 root="results"
 
-round_name="monday_class_baseline_0922_${test_player}"
+round_name="test_p3_0923_${test_player}"
 
 output_root="$root/${round_name}_L${L}B${B}S${S}"
 
 # test mode control
 gui_on="false"  
-rounds=10 # random rounds with same setting. 
+rounds=5 # random rounds with same setting. 
 detailed_on="false" # detailed
 
 # Set GUI flag based on gui_on variable
@@ -84,7 +84,7 @@ $cmd --length $L --memory_size $B --subjects $S --output_path "$output_root/good
 # complex environment
 # include: pr, p_zipper, p_selfless_greedy, p_selfish_greedy, p_bst_low, p_bst_medium, p_bst_high
 # player_list="pr p_zipper p_selfless_greedy p_selfish_greedy p_balanced_greedy p_bst_low p_bst_medium p_bst_high"
-player_list="pr p_zipper p_selfless_greedy p_selfish_greedy p_balanced_greedy p_bst_low p_bst_medium"
+player_list="pr p_zipper p_balanced_greedy p_bst_low p_bst_medium"
 # player_list="p_zipper p_selfless_greedy p_balanced_greedy p_bst_low"
 
 cmd="python main.py"

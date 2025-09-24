@@ -59,6 +59,18 @@ def _parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Print the planned lineups and exit without running simulations",
     )
+    parser.add_argument(
+        "--mode",
+        choices=["full", "short", "simple"],
+        default="full",
+        help="full: all configs; short: skip large L*P ≥ 20000; simple: sample one B/S per lineup and skip large configs",
+    )
+    parser.add_argument(
+        "--max-time",
+        type=float,
+        default=None,
+        help="Optional timeout (seconds) for each simulation run",
+    )
     return parser.parse_args(argv)
 
 
@@ -92,6 +104,8 @@ def main(argv: Iterable[str] | None = None) -> int:
             lengths=args.lengths,
             subject_counts=args.subjects,
             memory_tiers=args.memory_tiers,
+            mode=args.mode,
+            max_time=args.max_time,
         )
     except Exception as exc:  # noqa: BLE001 - CLI guardrail
         print(f"error: {exc}", file=sys.stderr)

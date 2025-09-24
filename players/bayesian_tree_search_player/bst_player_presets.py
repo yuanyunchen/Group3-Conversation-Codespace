@@ -195,12 +195,13 @@ class BayesianTreeBeamSearchPlayer(Player):
 
 	@staticmethod
 	def set_hyperparameter(P, L, B, S):
-		static_baseline = 0.45
+		static_baseline = 0.6
 		discount_rate = 0.12
 		blend_factor = 0.6
 		threshold_upper_bound = 0.6
+  
 		competition_rate = 0.5
-
+  
 		return {
 			"static_baseline": static_baseline,
 			"discount_rate": discount_rate,

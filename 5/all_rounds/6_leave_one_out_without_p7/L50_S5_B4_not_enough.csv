@@ -1,0 +1,7 @@
+type,player_numbers,score,individual,shared_score,involvement_ratio,contributed_individual_score,contributed_shared_score,importance,coherence,freshness,nonmonotone
+Player5,1,0.66,0.65,0.01,2.24,0.78,-0.53,0.10,0.16,0.00,-0.79
+Player2,1,0.60,0.59,0.01,0.44,0.62,1.15,0.49,0.70,0.03,-0.07
+Player6,1,0.59,0.58,0.01,0.42,0.66,1.28,0.41,0.71,0.16,0.00
+Player1,1,0.59,0.58,0.01,0.41,0.58,1.27,0.57,0.72,0.17,-0.21
+Player8,1,0.59,0.58,0.01,1.81,0.61,-0.38,0.13,0.22,0.00,-0.73
+Player4,1,0.56,0.55,0.01,0.46,0.59,1.32,0.55,0.84,0.07,-0.15

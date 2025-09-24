@@ -124,38 +124,42 @@ class BayesianTreeBeamSearch:
 		if start_node is None:
 			start_node = tree.root
 
-		level = 0
 		leaves = [start_node]
 		context_stack = self.context_stack
-		while level < self.depth:
-			# traverse all nodes
+		depth = 0
+
+		while leaves and depth < self.depth:
 			next_level_candidates = []
 			for leaf in leaves:
+				# Stop expanding once a pause has been chosen, preserving branch length
+				if leaf.memory is None and leaf is not start_node:
+					next_level_candidates.append(leaf)
+					continue
+
 				branch_nodes = self._tree_branch_to_list(leaf, start_node)
-				# Ensure only non-None item memories are used in context
 				branch_items = [n.memory for n in branch_nodes if n.memory is not None]
 				context_stack.extend(branch_items)
+
 				for item in items:
 					score = self.scorer.evaluate(item, context_stack)
-					new_node = tree.add_node(leaf, item, score)
-					next_level_candidates.append(new_node)
-				# Add pause option (no item contributed on this branch)
+					next_level_candidates.append(tree.add_node(leaf, item, score))
+
+				# Insert pause without trimming it in later iterations
 				pause_node = tree.add_node(leaf, None, 0.0)
 				next_level_candidates.append(pause_node)
-				# context_stack = context_stack[:-level-1]
-				# del context_stack[-len(branch_list):]
+
 				if branch_items:
 					del context_stack[-len(branch_items) :]
 
-			# global selection
+			# Select top candidates; pause nodes stay if selected here
 			leaves = self._find_top_nodes(next_level_candidates, start_node)
 
-			# backward prunnning
+			# Remove dominated branches except explicitly retained pause leaves
 			for node in next_level_candidates:
-				if node not in leaves:
+				if node not in leaves and node.memory is not None:
 					tree.leaf_branch_backward_prunning(node)
 
-			level += 1
+			depth += 1
 
 	def backward_get_best_candidate(self, node: BayesianTreeNode, root_for_score: BayesianTreeNode):
 		# Recursive: pick the best scoring leaf in the subtree
@@ -186,6 +190,28 @@ class BayesianTreeBeamSearch:
 
 
 class BayesianTreeBeamSearchPlayer(Player):
+	# ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾ ▾
+	# complete this 😈
+
+	@staticmethod
+	def set_hyperparameter(P, L, B, S):
+		static_baseline = 0.6
+		discount_rate = 0.12
+		blend_factor = 0.6
+		threshold_upper_bound = 0.6
+  
+		competition_rate = 0.5
+  
+		return {
+			"static_baseline": static_baseline,
+			"discount_rate": discount_rate,
+			"blend_factor": blend_factor,
+			"threshold_upper_bound": threshold_upper_bound,
+			"competition_rate": competition_rate,
+		}
+
+	# ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴ ▴
+
 	def __init__(
 		self,
 		snapshot: PlayerSnapshot,
@@ -193,15 +219,14 @@ class BayesianTreeBeamSearchPlayer(Player):
 		depth=1,
 		breadth=None,
 		breadth_rate=None,
-		initial_competition_rate: float = 0.5,
-		initial_speak_panelty: float = DEFAULT_SPEAK_PANELTY,  ##
+		# initial_competition_rate: float = 0.5,
+		# initial_speak_panelty: float = DEFAULT_SPEAK_PANELTY,  ##
 		static_threhold=None,
 	) -> None:
 		super().__init__(snapshot, ctx)
-		self.scorer = ConversationScorer(self.preferences, initial_competition_rate)
 		self.depth = depth
-		self.initial_competition_rate = initial_competition_rate
-		self.initial_speak_panelty = initial_speak_panelty
+		# self.initial_competition_rate = initial_competition_rate
+		# self.initial_speak_panelty = initial_speak_panelty
 		self.static_threhold = static_threhold
 
 		if breadth is not None:
@@ -211,22 +236,85 @@ class BayesianTreeBeamSearchPlayer(Player):
 		else:
 			self.breadth = len(self.memory_bank)
 
-	# ---------------------------------------------------------------------------------------------------------------------------------------------------
+		# hyperparameter setting:
+		P = ctx.number_of_players
+		L = ctx.conversation_length
+		B = len(self.memory_bank)
+		S = len(self.preferences)
 
-	# question to think about:
-	# use which information to adjust & how: L(conversation_length) ~ T | B ~ S ~ available items | history
-	def set_competition_rate(self, history):
-		return self.initial_competition_rate  # currently use the
+		hyperparameter = self.set_hyperparameter(P, L, B, S)
+		self.static_baseline = hyperparameter["static_baseline"]
+		self.discount_rate = hyperparameter["discount_rate"]
+		self.blend_factor = hyperparameter["blend_factor"]
+		self.threshold_upper_bound = hyperparameter["threshold_upper_bound"]
+		self.competition_rate = hyperparameter["competition_rate"]
 
-	def set_speak_panelty(self, history):
-		return self.initial_speak_panelty
+		self.scorer = ConversationScorer(self.preferences, self.competition_rate)
 
-	# ---------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+	# # question to think about:
+	# # use which information to adjust & how: L(conversation_length) ~ T | B ~ S ~ available items | history
+	# def set_competition_rate(self, history):
+	# 	return self.initial_competition_rate  # currently use the
+
+	# def set_speak_panelty(self, history):
+	# 	return self.initial_speak_panelty
+
+	# discount_rate 0.12 | static_baseline 0.45 | blend_factor .60 have worked the best when paired against itself (emanuel)
+	# 0.10, 0.53, 0.10 seem to work better when paired with greedy bots
+	def dynamic_threshold(
+		self,
+		history: list,
+		# discount_rate: float = 0.12,
+		# static_baseline: float = 0.45,
+		# blend_factor: float = 0.6,
+		# ##
+		# threshold_upper_bound: float = 0.6
+	) -> float:
+		"""
+		Compute a dynamic threshold for proposing items.
+
+		- uses a discounted moving average of item scores.
+		- skips 'None' items (pauses).
+		- blends with a static baseline for stability.
+		"""
+  
+		ema = None
+		# skips through paused items
+		### upper bound of cauculation. 
+
+		MAX_CONTEXT_LENGTH = int(10 / self.discount_rate) if self.discount_rate else 100
+		t = len(history)
+		# for i, item in enumerate(history):
+		for i in range(max(0, t - MAX_CONTEXT_LENGTH), t):
+			item = history[i]
+			if item is None:
+				continue
+			### efficiency issue: O(N^2) --> O(N)
+			# context = [x for x in history[:i] if x is not None] 
+			# score = self.scorer.evaluate(item, context)
+			score = self.scorer.evaluate_at_position(history, i)
+			# get a moving average of the scores
+			ema = score if ema is None else self.discount_rate * score + (1 - self.discount_rate) * ema
+
+		# if history was all None / pause, fallback to static baseline
+		if ema is None:
+			ema = self.static_baseline
+
+		# blend average with static baseline
+		threshold = self.blend_factor * ema + (1 - self.blend_factor) * self.static_baseline
+		# threshold = max(threshold, ema + self.initial_speak_panelty) ## worse
+		### add upper bound
+		threshold = min(threshold, self.threshold_upper_bound)
+
+		return threshold
+
 
 	def propose_item(self, history: list[Item]) -> Item | None:
-		# 1, set the hyperparameters
-		competition_rate = self.set_competition_rate(history)  # with suitable parameters.
-		self.scorer.set_competition_rate(competition_rate)
+		# # 1, set the hyperparameters
+		# competition_rate = self.set_competition_rate(history)  # with suitable parameters.
+		# self.scorer.set_competition_rate(competition_rate)
 
 		# 2, Search best item with highest scores.
 		searcher = BayesianTreeBeamSearch(
@@ -242,11 +330,13 @@ class BayesianTreeBeamSearchPlayer(Player):
 		if self.static_threhold is not None:
 			threhold = self.static_threhold
 		else:
-			speak_panelty = self.set_speak_panelty(history)
-			score_expectation = self.scorer.calculate_expected_score(
-				history, mode='discount_average'
-			)
-			threhold = score_expectation + speak_panelty
+			#speak_panelty = self.set_speak_panelty(history)
+			#DEFULT_DISCOUNT_RATE = 0.1
+			#DEFULT_CONTEXT_LENGTH = 10
+			#score_expectation = self.scorer.calculate_expected_score(
+				#history, mode='discount_average'
+			#)
+			threhold = self.dynamic_threshold(history)
 
 		# (2) propose or keep silient
 		if score > threhold:

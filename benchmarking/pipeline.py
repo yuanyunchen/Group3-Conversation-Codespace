@@ -84,11 +84,14 @@ def _run_simulation(
     test_player: str,
     config_dir: Path,
     config: BenchmarkConfig,
-    rounds: int,
     seed: int,
     force: bool,
-) -> Path:
-    target_csv = config_dir.parent / f"{config.key}.csv"
+    max_time: float | None,
+    round_index: int,
+    log_command: bool = False,
+) -> Path | None:
+    round_label = f"r{round_index + 1:03d}"
+    target_csv = config_dir.parent / f"{config.key}_{round_label}.csv"
 
     if target_csv.exists():
         if force:
@@ -113,7 +116,7 @@ def _run_simulation(
             "--subjects",
             str(config.subjects),
             "--rounds",
-            str(rounds),
+            "1",
             "--seed",
             str(seed),
             "--output_path",
@@ -123,8 +126,36 @@ def _run_simulation(
         ]
     )
 
-    print(f"[benchmark] Running {' '.join(cmd)}")
-    subprocess.run(cmd, cwd=repo_root, check=True)
+    if log_command:
+        print(f"[benchmark] Running {' '.join(cmd)}")
+    try:
+        subprocess.run(
+            cmd,
+            cwd=repo_root,
+            check=True,
+            timeout=max_time,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            f"[benchmark] Timeout after {max_time}s for {config_dir}",
+            file=sys.stderr,
+        )
+        try:
+            shutil.rmtree(config_dir)
+        except OSError:
+            pass
+        return None
+    except subprocess.CalledProcessError as exc:
+        stdout = exc.stdout or ""
+        stderr = exc.stderr or ""
+        if stdout:
+            print(stdout, file=sys.stderr)
+        if stderr:
+            print(stderr, file=sys.stderr)
+        raise
 
     results_csv = config_dir / "results.csv"
     if not results_csv.exists():
@@ -300,10 +331,12 @@ def run_benchmark(
     lengths: Iterable[int] | None = None,
     subject_counts: Iterable[int] | None = None,
     memory_tiers: Iterable[str] | None = None,
+    mode: str = "full",
+    max_time: float | None = None,
 ) -> Path:
     """Run the benchmarking pipeline and return the aggregated CSV path."""
 
-    rounds = max(10, rounds)
+    rounds = max(1, rounds)
 
     repo_root = Path(__file__).resolve().parents[1]
     output_root = (
@@ -315,6 +348,8 @@ def run_benchmark(
 
     lineups = generate_lineups(test_player)
     player_class_name = _resolve_player_class(test_player)
+
+    failed_configs: set[tuple[str, str]] = set()
 
     selection_filter = (
         {str(method) for method in selection_methods}
@@ -330,12 +365,26 @@ def run_benchmark(
     else:
         memory_map = MEMORY_MULTIPLIERS
 
+    mode = mode.lower()
+    if mode not in {"full", "short", "simple"}:
+        raise ValueError("mode must be one of 'full', 'short', or 'simple'")
+
+    def _should_skip(length: int, memory_size: int) -> bool:
+        if mode in {"short", "simple"} and length * memory_size > 20000:
+            return True
+        return False
+
     aggregated_rows: list[dict[str, float | int | str]] = []
     per_player_rows: defaultdict[str, list[dict[str, float | int | str]]] = defaultdict(list)
 
     active_lineups = [
         lineup for lineup in lineups if not selection_filter or lineup.selection_method in selection_filter
     ]
+
+    if mode == "simple":
+        subject_options = subject_options[:1]
+        key, value = next(iter(memory_map.items()))
+        memory_map = {key: value}
 
     cases_per_lineup = len(length_options) * len(subject_options) * len(memory_map)
     total_cases = cases_per_lineup * len(active_lineups)
@@ -365,38 +414,111 @@ def run_benchmark(
                         / lineup_dir
                         / config.key
                     )
-                    try:
-                        results_csv = _run_simulation(
-                            repo_root,
-                            test_player,
-                            config_dir,
-                            config,
-                            rounds,
-                            seed,
-                            force,
-                        )
-                    except subprocess.CalledProcessError as exc:
-                        print(f"[benchmark] Simulation failed for {config_dir}: {exc}")
+
+                    if _should_skip(length, memory_size):
                         if progress:
                             progress.update(1)
                         continue
 
-                    try:
-                        entries = _extract_metrics(results_csv)
-                    except ValueError as exc:
-                        print(f"[benchmark] {exc}")
+                    config_signature = (lineup.name, config.key)
+                    if config_signature in failed_configs:
                         if progress:
                             progress.update(1)
                         continue
 
                     participant_counts = _format_player_counts(config.lineup.player_counts)
+                    accumulators: dict[str, dict[str, float | int]] = {}
+                    success = True
 
-                    for entry in entries:
-                        class_name = entry.get("class_name", "")
-                        player_code = CLASS_NAME_TO_CODE.get(class_name, class_name)
-                        metrics = entry.get("metrics", {})
-                        player_numbers = int(round(metrics.get("player_numbers", 0.0)))
+                    for round_idx in range(rounds):
+                        round_seed = seed + round_idx
+                    display_name = f"{lineup_dir}/{config.key}"
+                    round_progress = None
+                    if tqdm and rounds > 1:
+                        print(f"[benchmark] {display_name}")
+                        round_progress = tqdm(total=rounds, desc="rounds", leave=False)
 
+                    for round_idx in range(rounds):
+                        round_seed = seed + round_idx
+                        try:
+                            results_csv = _run_simulation(
+                                repo_root,
+                                test_player,
+                                config_dir,
+                                config,
+                                round_seed,
+                                force,
+                                max_time,
+                                round_idx,
+                                log_command=False,
+                            )
+                        except subprocess.CalledProcessError as exc:
+                            print(f"[benchmark] Simulation failed for {config_dir}: {exc}")
+                            if round_progress:
+                                round_progress.close()
+                            failed_configs.add(config_signature)
+                            success = False
+                            break
+
+                        if results_csv is None:
+                            if round_progress:
+                                round_progress.close()
+                            failed_configs.add(config_signature)
+                            success = False
+                            break
+
+                        try:
+                            entries = _extract_metrics(results_csv)
+                        except ValueError as exc:
+                            print(f"[benchmark] {exc}")
+                            if round_progress:
+                                round_progress.close()
+                            failed_configs.add(config_signature)
+                            success = False
+                            break
+
+                        if round_progress:
+                            round_progress.update(1)
+
+                        for entry in entries:
+                            class_name = entry.get("class_name", "")
+                            player_code = CLASS_NAME_TO_CODE.get(class_name, class_name)
+                            metrics = entry.get("metrics", {})
+                            player_numbers = int(round(metrics.get("player_numbers", 0.0)))
+
+                            acc = accumulators.setdefault(
+                                player_code,
+                                {
+                                    "rank_sum": 0.0,
+                                    "metric_sums": {key: 0.0 for key in METRIC_KEYS},
+                                    "player_numbers": player_numbers,
+                                    "count": 0,
+                                    "class_name": class_name,
+                                },
+                            )
+                            if not acc["player_numbers"]:
+                                acc["player_numbers"] = player_numbers
+
+                            acc["rank_sum"] += float(entry.get("rank", 0.0))
+                            for key in METRIC_KEYS:
+                                acc["metric_sums"][key] += float(metrics.get(key, 0.0))
+                            acc["count"] += 1
+
+                    if round_progress:
+                        round_progress.close()
+
+                    if not success:
+                        if progress:
+                            progress.update(1)
+                        continue
+
+                    if not accumulators:
+                        if progress:
+                            progress.update(1)
+                        continue
+
+                    for player_code, data in accumulators.items():
+                        count = data.get("count", 0) or 1
                         row: dict[str, float | int | str] = {
                             "round_name": round_name,
                             "Player": player_code,
@@ -409,17 +531,17 @@ def run_benchmark(
                             "memory_tier": tier_name,
                             "S": config.subjects,
                             "rounds": rounds,
-                            "rank": entry.get("rank", 0),
-                            "player_numbers": player_numbers,
+                            "rank": data["rank_sum"] / count,
+                            "player_numbers": int(data.get("player_numbers", 0)),
                             "player_info": participant_counts,
                         }
 
                         for key in METRIC_KEYS:
-                            row[key] = metrics.get(key, 0.0)
+                            row[key] = data["metric_sums"][key] / count
 
                         per_player_rows[player_code].append(row)
 
-                        if player_code == test_player or class_name == player_class_name:
+                        if player_code == test_player or data.get("class_name") == player_class_name:
                             aggregated_rows.append(row)
 
                     if progress:
